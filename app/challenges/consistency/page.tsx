@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 
 const ITEMS = ["●", "■", "▲", "◆", "★", "✚", "✦", "⬟", "⬢", "✿", "☀", "❖"];
-const SETS = [5, 7, 7];
+const LEVELS = [2, 3, 4, 5, 6, 7, 8];
 
 function makeSet(count = 10) {
   return [...ITEMS].sort(() => Math.random() - 0.5).slice(0, count);
@@ -17,19 +17,19 @@ function shuffle<T>(items: T[]) {
 export default function ConsistencyChallenge() {
   const [started, setStarted] = useState(false);
   const [finished, setFinished] = useState(false);
-  const [challenge, setChallenge] = useState(0);
+  const [level, setLevel] = useState(0);
   const [images, setImages] = useState<string[]>([]);
   const [firstPick, setFirstPick] = useState<string[]>([]);
   const [secondPick, setSecondPick] = useState<string[]>([]);
   const [phase, setPhase] = useState<"first" | "second">("first");
   const [scores, setScores] = useState<number[]>([]);
 
-  const count = SETS[challenge];
+  const count = LEVELS[level];
   const selected = phase === "first" ? firstPick : secondPick;
-  const shuffledPositions = challenge === 2 && phase === "second";
+  const shuffledPositions = level >= 5 && phase === "second";
 
-  const beginChallenge = (index: number) => {
-    setChallenge(index);
+  const beginLevel = (index: number) => {
+    setLevel(index);
     setImages(makeSet());
     setFirstPick([]);
     setSecondPick([]);
@@ -40,17 +40,18 @@ export default function ConsistencyChallenge() {
     setStarted(true);
     setFinished(false);
     setScores([]);
-    beginChallenge(0);
+    beginLevel(0);
   };
 
   const choose = (image: string) => {
     if (selected.includes(image) || selected.length >= count) return;
+
     if (phase === "first") setFirstPick((current) => [...current, image]);
     else setSecondPick((current) => [...current, image]);
   };
 
   const redo = () => {
-    if (challenge === 2) setImages(shuffle(firstPick));
+    if (shuffledPositions) setImages(shuffle(firstPick));
     setSecondPick([]);
     setPhase("second");
   };
@@ -68,8 +69,11 @@ export default function ConsistencyChallenge() {
     const nextScores = [...scores, score];
     setScores(nextScores);
 
-    if (challenge === SETS.length - 1) setFinished(true);
-    else beginChallenge(challenge + 1);
+    if (level === LEVELS.length - 1) {
+      setFinished(true);
+    } else {
+      beginLevel(level + 1);
+    }
   };
 
   const consistency = useMemo(() => {
@@ -82,22 +86,22 @@ export default function ConsistencyChallenge() {
       <div className="game-topbar">
         <Link href="/" className="game-back">← FORGE</Link>
         <div className="game-progress">
-          {started && !finished ? "CHALLENGE " + (challenge + 1) + "/3" : "CONSISTENCY"}
+          {started && !finished ? "LEVEL " + (level + 1) + "/" + LEVELS.length : "CONSISTENCY"}
         </div>
       </div>
 
       {!started && (
         <section className="game-intro">
-          <div className="eyebrow">CONSISTENCY · REPEATABILITY</div>
-          <h1>Can you repeat what you just did?</h1>
+          <div className="eyebrow">CONSISTENCY · PROGRESSIVE MEMORY</div>
+          <h1>Build your consistency, one step at a time.</h1>
           <p>
-            First choose your own order. Then reproduce that exact order. In the final challenge,
-            the positions change, so you must remember the images themselves—not where you first saw them.
+            Start with just 2 images. Each level adds one more. Create your own order, then reproduce it.
+            Later levels move the images so you must remember the items themselves, not their positions.
           </p>
           <div className="rule-pills">
-            <span>5 from 10</span>
-            <span>7 from 10</span>
-            <span>7 with shuffled positions</span>
+            <span>2 → 3 → 4 → 5</span>
+            <span>6 → 7 → 8</span>
+            <span>Progressive difficulty</span>
           </div>
           <button className="btn btn-primary" onClick={start}>Start Consistency</button>
         </section>
@@ -120,7 +124,7 @@ export default function ConsistencyChallenge() {
             {phase === "first"
               ? "Choose " + count + " images from the 10-image set in any order. The order you create becomes your pattern."
               : shuffledPositions
-                ? "The same " + count + " images are here, but their positions have changed. Select them in the exact order you chose before."
+                ? "The same " + count + " images are here, but their positions changed. Select them in the exact order you created before."
                 : "Now repeat the exact same " + count + " images in the same order. There is no speed test."}
           </p>
 
@@ -141,7 +145,7 @@ export default function ConsistencyChallenge() {
 
           {selected.length === count && phase === "first" && (
             <button className="btn btn-primary" onClick={redo}>
-              {challenge === 2 ? "Shuffle positions & rebuild" : "Repeat the order"}
+              {shuffledPositions ? "Shuffle positions & rebuild" : "Repeat the order"}
             </button>
           )}
 
@@ -150,8 +154,8 @@ export default function ConsistencyChallenge() {
           )}
 
           <div className="live-stats">
-            <span>CHALLENGE <b>{challenge + 1}/3</b></span>
-            <span>SELECT <b>{count}</b></span>
+            <span>LEVEL <b>{level + 1}</b></span>
+            <span>ITEMS <b>{count}</b></span>
             <span>PREVIOUS <b>{scores.length ? scores[scores.length - 1] + "%" : "—"}</b></span>
           </div>
         </section>
@@ -163,13 +167,16 @@ export default function ConsistencyChallenge() {
           <div className="result-score">{consistency}%</div>
           <div className="result-label">OVERALL CONSISTENCY</div>
           <div className="result-stats">
-            <div><strong>{scores[0]}%</strong><span>5-image match</span></div>
-            <div><strong>{scores[1]}%</strong><span>7-image match</span></div>
-            <div><strong>{scores[2]}%</strong><span>shuffled-position match</span></div>
+            {scores.map((score, index) => (
+              <div key={LEVELS[index]}>
+                <strong>{score}%</strong>
+                <span>{LEVELS[index]}-item match</span>
+              </div>
+            ))}
           </div>
           <p>
-            This score reflects how reliably you reproduced your own decisions. The final challenge
-            removes position memory: the images move, but your original order stays the same.
+            You progressed from 2 items to 8. The later levels also remove position memory by moving
+            the items before you reproduce your original order.
           </p>
           <div className="cta-row">
             <button className="btn btn-primary" onClick={start}>Try again</button>
