@@ -1,0 +1,21 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
+const ROUNDS = 8;
+const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+function makeSequence(mode: "numbers" | "letters") { return Array.from({length:10},()=>mode === "numbers" ? String(Math.floor(Math.random()*10)) : LETTERS[Math.floor(Math.random()*LETTERS.length)]); }
+
+export default function RecallChallenge() {
+  const [started,setStarted]=useState(false),[showing,setShowing]=useState(false),[finished,setFinished]=useState(false),[round,setRound]=useState(0),[mode,setMode]=useState<"numbers"|"letters">("numbers"),[sequence,setSequence]=useState<string[]>([]),[answer,setAnswer]=useState<string[]>([]),[score,setScore]=useState(0),[correct,setCorrect]=useState(0);
+  const beginRound=()=>{const m=Math.random()>.5?"numbers":"letters";setMode(m);setSequence(makeSequence(m));setAnswer([]);setShowing(true);window.setTimeout(()=>setShowing(false),2600);};
+  const begin=()=>{setStarted(true);setFinished(false);setRound(0);setScore(0);setCorrect(0);window.setTimeout(beginRound,100);};
+  const pick=(v:string)=>{if(showing||finished||answer.length>=10)return;const i=answer.length;const ok=v===sequence[i];setAnswer(a=>[...a,v]);if(ok){setCorrect(c=>c+1);setScore(s=>s+10);};if(i===9){window.setTimeout(()=>{if(round===ROUNDS-1)setFinished(true);else{setRound(r=>r+1);window.setTimeout(beginRound,450);}},350);}};
+  const options=useMemo(()=>{const source=mode==="numbers"?Array.from({length:10},(_,i)=>String(i)):LETTERS.split("").slice(0,12);return source.sort(()=>Math.random()-.5).slice(0,10)},[mode,sequence]);
+  useEffect(()=>{if(!finished)return;const previous=JSON.parse(window.localStorage.getItem("forge.metrics")||"[[\"Focus\",0],[\"Control\",0],[\"Patience\",0],[\"Persistence\",0],[\"Consistency\",0]]") as [string,number][];window.localStorage.setItem("forge.metrics",JSON.stringify(previous));},[finished]);
+  return <main className="game-shell"><div className="game-topbar"><Link href="/" className="game-back">← FORGE</Link><div className="game-progress">{started&&!finished?`${round+1}/${ROUNDS}`:"RECALL"}</div></div>
+  {!started&&<section className="game-intro"><div className="eyebrow">RECALL · WORKING MEMORY</div><h1>Hold it in your mind.</h1><p>A sequence of 10 numbers or letters appears briefly. When it disappears, rebuild it one character at a time. The mode changes from round to round.</p><div className="rule-pills"><span>10 characters</span><span>Numbers + letters</span><span>8 rounds</span></div><button className="btn btn-primary" onClick={begin}>Start Recall</button></section>}
+  {started&&!finished&&<section className="game-stage"><div className="target-card"><span>{showing?"MEMORIZE":"RECALL"}</span><strong>{showing?mode.toUpperCase():`${answer.length}/10`}</strong></div>{showing?<div className="recall-sequence">{sequence.map((v,i)=><span key={i}>{v}</span>)}</div>:<><div className="recall-answer">{answer.map((v,i)=><span key={i}>{v}</span>)}{Array.from({length:10-answer.length}).map((_,i)=><span key={`e${i}`} className="empty">·</span>)}</div><div className="recall-options">{options.map(v=><button key={v} className="recall-key" onClick={()=>pick(v)}>{v}</button>)}</div></>}<div className="live-stats"><span>ROUND <b>{round+1}</b></span><span>CORRECT <b>{correct}</b></span><span>SCORE <b>{score}</b></span></div><p className="game-hint">{showing?"Read it once, then hold the sequence in your mind.":"Select the next character in the order you remember it."}</p></section>}
+  {finished&&<section className="result-card"><div className="eyebrow">RECALL COMPLETE</div><div className="result-score">{score}</div><div className="result-label">RECALL SCORE</div><div className="result-stats"><div><strong>{correct}</strong><span>correct</span></div><div><strong>{ROUNDS}</strong><span>rounds</span></div><div><strong>10</strong><span>characters</span></div></div><p>Working memory gets stronger when you actively hold information instead of immediately looking back at it.</p><div className="cta-row"><button className="btn btn-primary" onClick={begin}>Try again</button><Link href="/" className="btn btn-secondary">I'm done</Link></div></section>}</main>;
+}
