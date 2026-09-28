@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 const skills = [
   ["Focus", "Hold attention when distractions compete."],
@@ -10,9 +11,25 @@ const skills = [
   ["Consistency", "Perform reliably across repeated attempts."],
 ];
 
-const metrics = [["Focus", 81], ["Control", 69], ["Patience", 61], ["Persistence", 84], ["Consistency", 73]];
+const fallbackMetrics = [["Focus", 0], ["Control", 0], ["Patience", 0], ["Persistence", 0], ["Consistency", 0]];
 
 export default function Home() {
+  const [metrics, setMetrics] = useState(fallbackMetrics);
+  const [sessions, setSessions] = useState(0);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("forge.metrics");
+    const savedSessions = Number(window.localStorage.getItem("forge.sessions") || 0);
+    if (saved) {
+      try { setMetrics(JSON.parse(saved)); } catch { /* keep defaults */ }
+    }
+    setSessions(savedSessions);
+  }, []);
+
+  const overall = metrics.length ? Math.round(metrics.reduce((sum, [, value]) => sum + Number(value), 0) / metrics.length) : 0;
+  const strongest = [...metrics].sort((a, b) => Number(b[1]) - Number(a[1]))[0];
+  const weakest = [...metrics].sort((a, b) => Number(a[1]) - Number(b[1]))[0];
+
   return (
     <div className="forge-shell">
       <header className="topbar"><div className="brand">F<span>O</span>RGE</div><div className="status">ALPHA 0.1 · BUILDING IN PUBLIC</div></header>
@@ -22,14 +39,17 @@ export default function Home() {
             <div className="eyebrow">Train the switch</div>
             <h1>Your mind is a skill. Train it.</h1>
             <p className="lead">Short, competitive challenges designed to train focus, control, patience, persistence and consistency — without turning your training into another endless scroll.</p>
-            <div className="cta-row"><Link className="btn btn-primary" href="/challenges/focus">Start a challenge</Link><a className="btn btn-secondary" href="#profile">See your profile</a></div>
+            <div className="cta-row"><Link className="btn btn-primary" href="/challenges/focus">Start Focus</Link><Link className="btn btn-secondary" href="/challenges/switch">Try Switch · 60s</Link></div>
           </div>
-          <div className="card score-card"><div><div className="card-label">Forge score</div><div className="score">76</div><div className="percentile">Top 18% worldwide*</div><div className="progress"><div style={{ width: "76%" }} /></div></div><div><div className="card-label">Next opportunity</div><p style={{ marginBottom: 0 }}>Train Patience · 61 → 68</p></div></div>
+          <div className="card score-card"><div><div className="card-label">Forge score</div><div className="score">{overall}</div><div className="percentile">{overall ? "Your current training score" : "Complete a challenge to begin"}</div><div className="progress"><div style={{ width: `${overall}%` }} /></div></div><div><div className="card-label">Development signal</div><p style={{ marginBottom: 0 }}>{sessions ? `${sessions} deliberate session${sessions === 1 ? "" : "s"} recorded.` : "No sessions yet. Your first score starts the profile."}</p></div></div>
         </section>
+
         <section className="section"><div className="section-title"><div><h2>Five skills. One training system.</h2><p>Play for a few minutes. Leave better than you arrived.</p></div></div><div className="challenge-grid">{skills.map(([name, description], i) => <article className="card challenge" key={name}><div className="icon">0{i + 1}</div><div><strong>{name}</strong><p>{description}</p></div></article>)}</div></section>
-        <section className="section"><div className="card switch"><div><div className="eyebrow">The signature challenge</div><h2>Feeling the urge to scroll?</h2><p>Try a 60-second Switch challenge. Interrupt the impulse, solve a focused task, measure the result, then get back to what you actually wanted to do.</p></div><Link className="btn btn-primary" href="/challenges/focus">Try Focus · 60s</Link></div></section>
-        <section className="section" id="profile"><div className="section-title"><div><h2>Your development profile</h2><p>Performance metrics, not diagnoses.</p></div></div><div className="metric-row">{metrics.map(([name, value]) => <div className="card metric" key={name}><div className="metric-name">{name}</div><div className="metric-value">{value}</div><div className="progress"><div style={{ width: `${value}%` }} /></div></div>)}</div></section>
-        <p className="footer-note">*Alpha benchmark is illustrative. Production percentiles will use an explicitly defined, privacy-conscious benchmark population.</p>
+
+        <section className="section"><div className="card switch"><div><div className="eyebrow">The signature challenge</div><h2>Feeling the urge to scroll?</h2><p>Try a 60-second Switch challenge. Interrupt the impulse, solve a focused task, measure the result, then get back to what you actually wanted to do.</p></div><Link className="btn btn-primary" href="/challenges/switch">Try Switch · 60s</Link></div></section>
+
+        <section className="section" id="profile"><div className="section-title"><div><h2>Your development profile</h2><p>Performance metrics, not diagnoses.</p></div></div><div className="metric-row">{metrics.map(([name, value]) => <div className="card metric" key={name}><div className="metric-name">{name}</div><div className="metric-value">{value}</div><div className="progress"><div style={{ width: `${value}%` }} /></div></div>)}</div><div className="card insight-card"><strong>{sessions ? `Strongest: ${strongest[0]}` : "Your profile will emerge through play."}</strong><p>{sessions ? `Next training opportunity: ${weakest[0]}. Keep sessions short and deliberate.` : "Don't chase a score. Complete one challenge, review the result, and decide whether you're done."}</p></div></section>
+        <p className="footer-note">Alpha scores are game-performance measures, not clinical, intelligence, or real-world discipline assessments.</p>
       </main>
     </div>
   );
