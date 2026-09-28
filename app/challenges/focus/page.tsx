@@ -96,6 +96,7 @@ export default function FocusChallenge() {
 
     timerRef.current = window.setTimeout(() => {
       setRound((value) => value + 1);
+      setPhase("ready");
       timerRef.current = null;
     }, 650);
   }, [clearTimer, round]);
@@ -128,6 +129,7 @@ export default function FocusChallenge() {
       } else {
         timerRef.current = window.setTimeout(() => {
           setRound((value) => value + 1);
+          setPhase("ready");
           timerRef.current = null;
         }, 650);
       }
