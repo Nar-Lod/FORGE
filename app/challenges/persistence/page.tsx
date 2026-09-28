@@ -1,88 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-const ROUNDS = 8;
-const MAX_ATTEMPTS = 2;
-const COLORS = ["GREEN", "RED", "BLUE", "YELLOW"];
-const SHAPES = ["CIRCLE", "SQUARE", "TRIANGLE", "DIAMOND"];
+const LEVELS = [5, 6, 7, 8, 9, 10, 11, 12];
+const SHAPES = ["●", "■", "▲", "◆", "⬟", "⬢", "★", "✚", "✦", "⬣", "✿", "☀"];
+const COLORS = ["red", "blue", "green", "yellow", "purple", "orange"];
 
-type Task = { rule: "color" | "shape"; value: string; options: { color: string; shape: string }[] };
-
-function makeTask(): Task {
-  const rule = Math.random() > 0.5 ? "color" : "shape";
-  const value = rule === "color" ? COLORS[Math.floor(Math.random() * COLORS.length)] : SHAPES[Math.floor(Math.random() * SHAPES.length)];
-  const options = Array.from({ length: 6 }, () => ({ color: COLORS[Math.floor(Math.random() * COLORS.length)], shape: SHAPES[Math.floor(Math.random() * SHAPES.length)] }));
-  const target = Math.floor(Math.random() * options.length);
-  options[target] = { color: rule === "color" ? value : options[target].color, shape: rule === "shape" ? value : options[target].shape };
-  return { rule, value, options };
+type Item = { shape: string; color: string };
+function makeSequence(length: number): Item[] {
+  return Array.from({ length }, (_, i) => ({ shape: SHAPES[Math.floor(Math.random() * SHAPES.length)], color: COLORS[(i * 3 + Math.floor(Math.random() * COLORS.length)) % COLORS.length] }));
 }
 
 export default function PersistenceChallenge() {
-  const [started, setStarted] = useState(false);
-  const [finished, setFinished] = useState(false);
-  const [round, setRound] = useState(0);
-  const [task, setTask] = useState<Task>(makeTask());
-  const [attempts, setAttempts] = useState(0);
-  const [recovered, setRecovered] = useState(0);
-  const [failedRounds, setFailedRounds] = useState(0);
-  const [score, setScore] = useState(0);
-
-  const load = () => {
-    setTask(makeTask());
-    setAttempts(0);
-  };
-
-  const finish = (nextRecovered: number, nextFailed: number) => {
-    const result = Math.max(0, Math.min(100, Math.round((nextRecovered / ROUNDS) * 75 + Math.max(0, 25 - nextFailed * 4))));
-    setRecovered(nextRecovered);
-    setFailedRounds(nextFailed);
-    setScore(result);
-    setFinished(true);
-  };
-
-  const choose = (index: number) => {
-    if (!started || finished) return;
-    const option = task.options[index];
-    const correct = task.rule === "color" ? option.color === task.value : option.shape === task.value;
-    if (correct) {
-      const nextRecovered = recovered + (attempts > 0 ? 1 : 0);
-      if (round >= ROUNDS - 1) finish(nextRecovered + (attempts === 0 ? 1 : 0), failedRounds);
-      else { setRecovered(nextRecovered + (attempts === 0 ? 1 : 0)); setRound((v) => v + 1); window.setTimeout(load, 120); }
-      return;
-    }
-    const nextAttempt = attempts + 1;
-    if (nextAttempt < MAX_ATTEMPTS) {
-      setAttempts(nextAttempt);
-      return;
-    }
-    const nextFailed = failedRounds + 1;
-    if (round >= ROUNDS - 1) finish(recovered, nextFailed);
-    else { setFailedRounds(nextFailed); setRound((v) => v + 1); window.setTimeout(load, 120); }
-  };
-
-  const begin = () => {
-    setStarted(true); setFinished(false); setRound(0); setAttempts(0); setRecovered(0); setFailedRounds(0); setScore(0); load();
-  };
-
-  useEffect(() => {
-    if (!finished) return;
-    const previous = JSON.parse(window.localStorage.getItem("forge.metrics") || "[[\"Focus\",0],[\"Control\",0],[\"Patience\",0],[\"Persistence\",0],[\"Consistency\",0]]") as [string, number][];
-    window.localStorage.setItem("forge.metrics", JSON.stringify(previous.map(([name, value]) => name === "Persistence" ? [name, Math.max(value, score)] : [name, value])));
-  }, [finished, score]);
-
-  return (
-    <main className="game-shell">
-      <div className="game-topbar"><Link href="/" className="game-back">← FORGE</Link><div className="game-progress">{started && !finished ? `${round + 1}/${ROUNDS}` : "PERSISTENCE"}</div></div>
-      {!started && <section className="game-intro"><div className="eyebrow">PERSISTENCE · RECOVERY</div><h1>Failure is information.</h1><p>Each round gives you a small task. If you miss, you get one chance to change your approach. Persistence is measured by recovery, not by endless retries.</p><div className="rule-pills"><span>8 rounds</span><span>1 recovery chance</span><span>Adapt</span></div><button className="btn btn-primary" onClick={begin}>Start Persistence</button></section>}
-      {started && !finished && <section className="game-stage">
-        <div className="target-card"><span>RULE</span><strong>{task.rule.toUpperCase()} → {task.value}</strong></div>
-        <div className="switch-field">{task.options.map((option, index) => <button key={index} className={`switch-tile tile-${option.color.toLowerCase()}`} onClick={() => choose(index)} aria-label={`${option.color} ${option.shape}`}><span>{option.shape === "CIRCLE" ? "●" : option.shape === "SQUARE" ? "■" : option.shape === "TRIANGLE" ? "▲" : "◆"}</span></button>)}</div>
-        <div className="live-stats"><span>ROUND <b>{round + 1}</b></span><span>ATTEMPT <b>{attempts + 1}/{MAX_ATTEMPTS}</b></span><span>RECOVERED <b>{recovered}</b></span></div>
-        <p className="game-hint">{attempts ? "You missed. Change something: slow down, reread the rule, then choose." : "Solve it deliberately. If you miss, use the feedback instead of rushing."}</p>
-      </section>}
-      {finished && <section className="result-card"><div className="eyebrow">PERSISTENCE COMPLETE</div><div className="result-score">{score}</div><div className="result-label">PERSISTENCE SCORE</div><div className="result-stats"><div><strong>{recovered}</strong><span>recovered</span></div><div><strong>{failedRounds}</strong><span>failed rounds</span></div><div><strong>{ROUNDS}</strong><span>rounds</span></div></div><p>{recovered ? "You demonstrated recovery after mistakes. Persistence is adapting and continuing with a better approach." : "The next skill is recovery: when something fails, change one thing before trying again."}</p><div className="cta-row"><button className="btn btn-primary" onClick={begin}>Run once more</button><Link href="/" className="btn btn-secondary">I'm done</Link></div></section>}
-    </main>
-  );
+  const [started, setStarted] = useState(false), [showing, setShowing] = useState(false), [finished, setFinished] = useState(false);
+  const [level, setLevel] = useState(0), [sequence, setSequence] = useState<Item[]>([]), [answer, setAnswer] = useState<Item[]>([]);
+  const [score, setScore] = useState(0), [best, setBest] = useState(0), [wrong, setWrong] = useState(0);
+  const length = LEVELS[level];
+  const newLevel = () => { const seq = makeSequence(LEVELS[level]); setSequence(seq); setAnswer([]); setShowing(true); window.setTimeout(() => setShowing(false), 1100 + LEVELS[level] * 130); };
+  const begin = () => { setStarted(true); setFinished(false); setLevel(0); setScore(0); setWrong(0); window.setTimeout(newLevel, 100); };
+  const choose = (item: Item) => { if (showing || finished || answer.length >= length) return; const next = [...answer, item]; setAnswer(next); if (next.length === length) { const ok = next.every((v, i) => v.shape === sequence[i].shape && v.color === sequence[i].color); if (ok) { const nextScore = score + length * 10; setScore(nextScore); if (level === LEVELS.length - 1) { setBest(Math.max(best, nextScore)); setFinished(true); } else { setLevel(v => v + 1); window.setTimeout(newLevel, 500); } } else { setWrong(v => v + 1); if (level === 0) { setFinished(true); } else { setLevel(v => v - 1); window.setTimeout(newLevel, 500); } } } };
+  const options = useMemo(() => { const pool = [...sequence, ...makeSequence(Math.max(6, Math.min(10, length)))]; return pool.sort(() => Math.random() - .5).slice(0, Math.min(10, pool.length)); }, [sequence, length]);
+  useEffect(() => { const old = Number(window.localStorage.getItem("forge.persistence.best") || 0); setBest(old); }, []);
+  useEffect(() => { if (finished) window.localStorage.setItem("forge.persistence.best", String(Math.max(best, score))); }, [finished, best, score]);
+  return <main className="game-shell"><div className="game-topbar"><Link href="/" className="game-back">← FORGE</Link><div className="game-progress">{started && !finished ? `LEVEL ${level + 1}/8` : "PERSISTENCE"}</div></div>
+    {!started && <section className="game-intro"><div className="eyebrow">PERSISTENCE · SEQUENCE MEMORY</div><h1>Build the pattern. Recover when it breaks.</h1><p>Study a sequence of shapes, then rebuild it from memory. Each level adds another item. If you fail, the challenge steps back and gives you another chance to adapt.</p><div className="rule-pills"><span>5 → 12 items</span><span>Visual memory</span><span>Recover & adapt</span></div><button className="btn btn-primary" onClick={begin}>Start Persistence</button></section>}
+    {started && !finished && <section className="game-stage"><div className="target-card"><span>{showing ? "MEMORIZE" : "REBUILD"}</span><strong>{showing ? `${length} ITEMS` : `${answer.length}/${length}`}</strong></div><div className="focus-grid sequence-grid">{(showing ? sequence : answer).map((x,i)=><div key={i} className={`focus-cell sequence-cell ${x.color}`}><span>{x.shape}</span></div>)}</div>{!showing && <div className="option-grid">{options.map((x,i)=><button key={i} className={`switch-tile sequence-option ${x.color}`} onClick={()=>choose(x)}><span>{x.shape}</span></button>)}</div>}<div className="live-stats"><span>LEVEL <b>{level + 1}</b></span><span>SCORE <b>{score}</b></span><span>MISSES <b>{wrong}</b></span></div><p className="game-hint">{showing ? "Look carefully. The order matters." : "Rebuild the exact sequence. If you miss, slow down and adapt."}</p></section>}
+    {finished && <section className="result-card"><div className="eyebrow">PERSISTENCE COMPLETE</div><div className="result-score">{score}</div><div className="result-label">MEMORY PERSISTENCE SCORE</div><div className="result-stats"><div><strong>{level + 1}</strong><span>highest level</span></div><div><strong>{wrong}</strong><span>misses</span></div><div><strong>{best}</strong><span>best score</span></div></div><p>{level >= 5 ? "You pushed through increasing complexity and adapted after difficulty." : "Persistence improves when a mistake changes your approach rather than ending the attempt."}</p><div className="cta-row"><button className="btn btn-primary" onClick={begin}>Try again</button><Link href="/" className="btn btn-secondary">I'm done</Link></div></section>}</main>;
 }
