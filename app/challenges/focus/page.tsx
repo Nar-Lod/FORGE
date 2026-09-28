@@ -3,25 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { FOCUS_LIBRARIES, FOCUS_MODES, type FocusItem } from "../../../lib/focus-library";
+import { FORGE_CONFIG } from "../../../lib/forge-config";
 
-const ROUNDS = 20;
-const GRID_SIZE = 36;
+const { rounds: ROUNDS, gridSize: GRID_SIZE } = FORGE_CONFIG.focus;
 type Phase = "ready" | "visible" | "wait";
 
 function pick<T>(items: T[]) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
-function makePalette(mode: string, target: FocusItem) {
+function shuffle<T>(items: T[]) {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
+function makePalette(mode: string, target: FocusItem, complexity: number) {
   const pool = FOCUS_LIBRARIES[mode].filter((item) => item.id !== target.id);
-  const out = [target];
-
-  while (out.length < Math.min(10, pool.length + 1)) {
-    const item = pick(pool);
-    if (!out.some((existing) => existing.id === item.id)) out.push(item);
-  }
-
-  return out;
+  const size = Math.min(10 + complexity, pool.length + 1);
+  const distractors = shuffle(pool).slice(0, Math.max(0, size - 1));
+  return [target, ...distractors];
 }
 
 function visualStyle(index: number, item: FocusItem, target: boolean) {
@@ -42,6 +41,9 @@ function visualStyle(index: number, item: FocusItem, target: boolean) {
 
 export default function FocusChallenge() {
   const [round, setRound] = useState(0);
+  const [level, setLevel] = useState(FORGE_CONFIG.focus.startingLevel);
+  const [goodRounds, setGoodRounds] = useState(0);
+  const [poorRounds, setPoorRounds] = useState(0);
   const [mode, setMode] = useState("shapes");
   const [target, setTarget] = useState<FocusItem>(FOCUS_LIBRARIES.shapes[0]);
   const [targetCell, setTargetCell] = useState(-1);
@@ -57,8 +59,8 @@ export default function FocusChallenge() {
   const [palette, setPalette] = useState<FocusItem[]>([]);
   const timerRef = useRef<number | null>(null);
 
-  const difficulty = Math.min(1, round / (ROUNDS - 1));
-  const visibleMs = Math.round(1100 - difficulty * 600);
+  const levelConfig = FORGE_CONFIG.focus.levels[level - 1];
+  const visibleMs = levelConfig.reactionMs;
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -67,8 +69,34 @@ export default function FocusChallenge() {
     }
   }, []);
 
+  const advanceDifficulty = useCallback((wasCorrect: boolean) => {
+    if (wasCorrect) {
+      setPoorRounds(0);
+      setGoodRounds((value) => {
+        const next = value + 1;
+        if (next >= FORGE_CONFIG.focus.consecutiveGoodRounds && level < FORGE_CONFIG.focus.maxLevel) {
+          setLevel((current) => Math.min(FORGE_CONFIG.focus.maxLevel, current + 1));
+          return 0;
+        }
+        return next;
+      });
+      return;
+    }
+
+    setGoodRounds(0);
+    setPoorRounds((value) => {
+      const next = value + 1;
+      if (next >= FORGE_CONFIG.focus.consecutivePoorRounds && level > FORGE_CONFIG.focus.minLevel) {
+        setLevel((current) => Math.max(FORGE_CONFIG.focus.minLevel, current - 1));
+        return 0;
+      }
+      return next;
+    });
+  }, [level]);
+
   const finishRound = useCallback((wasCorrect: boolean, reaction?: number) => {
     clearTimer();
+    advanceDifficulty(wasCorrect);
 
     if (wasCorrect) {
       setHits((value) => value + 1);
@@ -85,62 +113,60 @@ export default function FocusChallenge() {
 
     setPhase("wait");
 
-    if (round >= ROUNDS - 1) {
-      timerRef.current = window.setTimeout(() => {
+    timerRef.current = window.setTimeout(() => {
+      if (round >= ROUNDS - 1) {
         setFinished(true);
         setPhase("ready");
-        timerRef.current = null;
-      }, 650);
-      return;
-    }
-
-    timerRef.current = window.setTimeout(() => {
-      setRound((value) => value + 1);
-      setPhase("ready");
+      } else {
+        setRound((value) => value + 1);
+        setPhase("ready");
+      }
       timerRef.current = null;
-    }, 650);
-  }, [clearTimer, round]);
+    }, FORGE_CONFIG.focus.waitDurationMs);
+  }, [advanceDifficulty, clearTimer, round]);
 
   const createRound = useCallback(() => {
     clearTimer();
 
+    const complexity = levelConfig.familyComplexity;
     const nextMode = pick(FOCUS_MODES);
     const nextTarget = pick(FOCUS_LIBRARIES[nextMode]);
     const nextTargetCell = Math.floor(Math.random() * GRID_SIZE);
 
     setMode(nextMode);
     setTarget(nextTarget);
-    setPalette(makePalette(nextMode, nextTarget));
+    setPalette(makePalette(nextMode, nextTarget, complexity));
     setTargetCell(nextTargetCell);
     setPhase("visible");
     setShownAt(performance.now());
 
     timerRef.current = window.setTimeout(() => {
+      advanceDifficulty(false);
       setPhase("wait");
       setMistakes((value) => value + 1);
       setStreak(0);
 
-      if (round >= ROUNDS - 1) {
-        timerRef.current = window.setTimeout(() => {
+      timerRef.current = window.setTimeout(() => {
+        if (round >= ROUNDS - 1) {
           setFinished(true);
           setPhase("ready");
-          timerRef.current = null;
-        }, 650);
-      } else {
-        timerRef.current = window.setTimeout(() => {
+        } else {
           setRound((value) => value + 1);
           setPhase("ready");
-          timerRef.current = null;
-        }, 650);
-      }
+        }
+        timerRef.current = null;
+      }, FORGE_CONFIG.focus.waitDurationMs);
     }, visibleMs);
-  }, [clearTimer, round, visibleMs]);
+  }, [advanceDifficulty, clearTimer, levelConfig.familyComplexity, round, visibleMs]);
 
   const start = () => {
     clearTimer();
     setStarted(true);
     setFinished(false);
     setRound(0);
+    setLevel(FORGE_CONFIG.focus.startingLevel);
+    setGoodRounds(0);
+    setPoorRounds(0);
     setHits(0);
     setMistakes(0);
     setStreak(0);
@@ -151,12 +177,11 @@ export default function FocusChallenge() {
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;
       createRound();
-    }, 350);
+    }, FORGE_CONFIG.focus.startDelayMs);
   };
 
   const choose = (index: number) => {
     if (!started || finished || phase !== "visible") return;
-
     const reaction = performance.now() - shownAt;
     finishRound(index === targetCell, index === targetCell ? reaction : undefined);
   };
@@ -179,18 +204,20 @@ export default function FocusChallenge() {
     createRound();
   }, [round, started, finished, phase, createRound]);
 
-  useEffect(() => {
-    return () => clearTimer();
-  }, [clearTimer]);
+  useEffect(() => () => clearTimer(), [clearTimer]);
 
   const score = useMemo(() => {
     if (!finished) return 0;
     const accuracy = hits / Math.max(1, hits + mistakes);
     const avgReaction = reactionTotal / Math.max(1, hits);
-    const speed = Math.max(0, 1 - avgReaction / 1500);
+    const speed = Math.max(0, 1 - avgReaction / FORGE_CONFIG.focus.resultSpeedReferenceMs);
     const streakBonus = Math.min(10, bestStreak * 0.8);
     return Math.round(Math.min(100, accuracy * 65 + speed * 25 + streakBonus));
   }, [finished, hits, mistakes, reactionTotal, bestStreak]);
+
+  const previousBest = typeof window === "undefined"
+    ? 0
+    : Number(window.localStorage.getItem("forge.lastFocus") || 0);
 
   useEffect(() => {
     if (!finished) return;
@@ -213,29 +240,38 @@ export default function FocusChallenge() {
   }, [finished, score]);
 
   const showField = phase === "visible";
+  const accuracy = hits / Math.max(1, hits + mistakes);
+  const improvementMessage =
+    score > previousBest && previousBest > 0
+      ? "You improved your Focus score. The field also adapts as your accuracy holds."
+      : score === previousBest && previousBest > 0
+        ? "You matched your best. One deliberate session is enough for today."
+        : score < previousBest && previousBest > 0
+          ? "Below your best this run. Recover with a better search strategy — not more retries."
+          : "Your first run establishes a baseline. Future sessions can adapt around your performance.";
 
   return (
     <main className="game-shell">
       <div className="game-topbar">
         <Link href="/" className="game-back">← FORGE</Link>
         <div className="game-progress">
-          {started && !finished ? round + 1 + "/" + ROUNDS : "FOCUS"}
+          {started && !finished ? `${round + 1}/${ROUNDS} · L${level}` : "FOCUS"}
         </div>
       </div>
 
       {!started && !finished && (
         <section className="game-intro">
-          <div className="eyebrow">FOCUS · VISUAL SEARCH</div>
+          <div className="eyebrow">FOCUS · ADAPTIVE VISUAL SEARCH</div>
           <h1>Find it before it vanishes.</h1>
           <p>
-            The library changes every round. Shapes, emojis, animals, food, vehicles and
-            flags can all appear. Scan the field, identify the exact target, then act before
-            it disappears.
+            The field changes every round. Your reaction window starts at 1.5 seconds
+            and adapts gradually as your accuracy holds. Better performance brings
+            faster timing and more complex distractors.
           </p>
           <div className="rule-pills">
             <span>6 visual families</span>
             <span>36 positions</span>
-            <span>Gets faster</span>
+            <span>Adaptive speed</span>
             <span>WAIT phases</span>
           </div>
           <button className="btn btn-primary" onClick={start}>Begin Focus</button>
@@ -263,7 +299,8 @@ export default function FocusChallenge() {
           <div className={"focus-grid " + (showField ? "focus-grid-live" : "focus-grid-wait")}>
             {Array.from({ length: GRID_SIZE }, (_, index) => {
               const item = palette[(index * 7 + round * 3) % Math.max(1, palette.length)];
-              const occupied = showField && index !== targetCell && index % 2 === (round % 2);
+              const occupancySeed = ((index * 17 + round * 13) % 100) / 100;
+              const occupied = showField && index !== targetCell && occupancySeed < levelConfig.distractorDensity;
 
               return (
                 <button
@@ -290,13 +327,13 @@ export default function FocusChallenge() {
             <span>STREAK <b>{streak}</b></span>
             <span>HITS <b>{hits}</b></span>
             <span>MISS <b>{mistakes}</b></span>
-            <span>MODE <b>{mode}</b></span>
+            <span>LEVEL <b>{level}</b></span>
           </div>
 
           <p className="game-hint">
             {phase === "wait"
               ? "WAIT is intentional: the target is gone. Resist the urge to tap."
-              : "Scan the whole field. A wrong tap or a missed target advances the round."}
+              : `Level ${level}: scan the whole field. Hold accuracy to unlock a harder field.`}
           </p>
         </section>
       )}
@@ -311,10 +348,9 @@ export default function FocusChallenge() {
             <div><strong>{mistakes}</strong><span>misses</span></div>
             <div><strong>{bestStreak}</strong><span>best streak</span></div>
           </div>
-          <p>
-            {score >= 80
-              ? "Strong visual control. Recover or beat your best with one deliberate attempt — not an endless session."
-              : "You can recover. Change your search strategy, then make one deliberate attempt."}
+          <p>{improvementMessage}</p>
+          <p className="game-hint">
+            Session accuracy: {Math.round(accuracy * 100)}%. Highest adaptive level reached: {level}.
           </p>
           <div className="cta-row">
             <button className="btn btn-primary" onClick={start}>Play another mix</button>
