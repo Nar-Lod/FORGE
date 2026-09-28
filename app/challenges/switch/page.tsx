@@ -9,6 +9,7 @@ const COLORS = ["GREEN", "RED", "BLUE", "YELLOW"];
 const SHAPES = ["CIRCLE", "SQUARE", "TRIANGLE", "DIAMOND"];
 
 type Rule = { kind: "color" | "shape" | "inhibit"; value: string; label: string };
+type Option = { id: number; color: string; shape: string };
 
 function randomRule(round: number): Rule {
   const mode = round % 3;
@@ -25,14 +26,27 @@ function randomRule(round: number): Rule {
     : { kind: "color", value: COLORS[Math.floor(Math.random() * COLORS.length)], label: "WAIT FOR THE SIGNAL" };
 }
 
-function makeOptions(rule: Rule) {
+function makeOptions(rule: Rule): Option[] {
   const options = Array.from({ length: 6 }, (_, index) => ({
     id: index,
     color: COLORS[Math.floor(Math.random() * COLORS.length)],
     shape: SHAPES[Math.floor(Math.random() * SHAPES.length)],
   }));
-  if (rule.kind === "color") options[Math.floor(Math.random() * options.length)].color = rule.value;
-  if (rule.kind === "shape") options[Math.floor(Math.random() * options.length)].shape = rule.value;
+
+  if (rule.kind === "color") {
+    const target = Math.floor(Math.random() * options.length);
+    options.forEach((option, index) => {
+      if (index === target) option.color = rule.value;
+      else option.color = COLORS.filter((color) => color !== rule.value)[index % 3];
+    });
+  }
+  if (rule.kind === "shape") {
+    const target = Math.floor(Math.random() * options.length);
+    options.forEach((option, index) => {
+      if (index === target) option.shape = rule.value;
+      else option.shape = SHAPES.filter((shape) => shape !== rule.value)[index % 3];
+    });
+  }
   return options;
 }
 
@@ -40,7 +54,7 @@ export default function SwitchChallenge() {
   const [started, setStarted] = useState(false);
   const [round, setRound] = useState(0);
   const [rule, setRule] = useState<Rule>(randomRule(0));
-  const [options, setOptions] = useState(makeOptions(randomRule(0)));
+  const [options, setOptions] = useState<Option[]>(makeOptions(rule));
   const [armed, setArmed] = useState(false);
   const [correct, setCorrect] = useState(0);
   const [mistakes, setMistakes] = useState(0);
@@ -72,20 +86,29 @@ export default function SwitchChallenge() {
     return () => window.clearInterval(timer);
   }, [started, finished]);
 
+  useEffect(() => {
+    if (!started || finished || !armed || rule.kind !== "inhibit") return;
+    const timeout = window.setTimeout(() => {
+      if (round >= ROUNDS - 1) setFinished(true);
+      else { setCorrect((value) => value + 1); setRound((value) => value + 1); beginRound(round + 1); }
+    }, 1100);
+    return () => window.clearTimeout(timeout);
+  }, [started, finished, armed, rule.kind, round]);
+
   const begin = () => {
     setStarted(true); setFinished(false); setRound(0); setCorrect(0); setMistakes(0); setFalseStarts(0); setSeconds(TOTAL_SECONDS);
     beginRound(0);
   };
 
-  const choose = (option: { color: string; shape: string }) => {
+  const choose = (option: Option) => {
     if (!started || finished) return;
-    const matches = rule.kind === "inhibit" ? false : rule.kind === "color" ? option.color === rule.value : option.shape === rule.value;
-    if (!armed) {
-      setFalseStarts((value) => value + 1);
-      return;
+    if (!armed) { setFalseStarts((value) => value + 1); return; }
+    if (rule.kind === "inhibit") {
+      setMistakes((value) => value + 1);
+    } else {
+      const matches = rule.kind === "color" ? option.color === rule.value : option.shape === rule.value;
+      if (matches) setCorrect((value) => value + 1); else setMistakes((value) => value + 1);
     }
-    if (matches) setCorrect((value) => value + 1);
-    else setMistakes((value) => value + 1);
     if (round >= ROUNDS - 1) setFinished(true);
     else { setRound((value) => value + 1); beginRound(round + 1); }
   };
