@@ -1,0 +1,25 @@
+export const FORGE_CONFIG = {
+  focus: {
+    rounds: 20,
+    gridSize: 36,
+    startingLevel: 1,
+    minLevel: 1,
+    maxLevel: 7,
+    levels: [
+      { level: 1, reactionMs: 1500, distractorDensity: 0.34, familyComplexity: 1 },
+      { level: 2, reactionMs: 1350, distractorDensity: 0.42, familyComplexity: 1 },
+      { level: 3, reactionMs: 1200, distractorDensity: 0.50, familyComplexity: 2 },
+      { level: 4, reactionMs: 1050, distractorDensity: 0.58, familyComplexity: 2 },
+      { level: 5, reactionMs: 900, distractorDensity: 0.66, familyComplexity: 3 },
+      { level: 6, reactionMs: 775, distractorDensity: 0.74, familyComplexity: 3 },
+      { level: 7, reactionMs: 650, distractorDensity: 0.82, familyComplexity: 4 },
+    ],
+    goodAccuracy: 0.85,
+    poorAccuracy: 0.65,
+    consecutiveGoodRounds: 3,
+    consecutivePoorRounds: 2,
+    waitDurationMs: 650,
+    startDelayMs: 350,
+    resultSpeedReferenceMs: 1500,
+  },
+} as const;
