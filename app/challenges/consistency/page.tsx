@@ -3,7 +3,152 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
-const ROUNDS=8;
-const ITEMS=["●","■","▲","◆","★","✚","✦","⬟","⬢","✿"];
-function makeSequence(n:number){return Array.from({length:n},()=>ITEMS[Math.floor(Math.random()*ITEMS.length)]);}
-export default function ConsistencyChallenge(){const[started,setStarted]=useState(false),[finished,setFinished]=useState(false),[round,setRound]=useState(0),[sequence,setSequence]=useState<string[]>([]),[answer,setAnswer]=useState<string[]>([]),[score,setScore]=useState(0),[streak,setStreak]=useState(0),[best,setBest]=useState(0);const length=6+Math.floor(round/2);const start=()=>{setStarted(true);setFinished(false);setRound(0);setScore(0);setStreak(0);setBest(0);window.setTimeout(next,100)};const next=()=>{setSequence(makeSequence(6+Math.floor(round/2)));setAnswer([])};const pick=(v:string)=>{if(finished)return;const i=answer.length;const ok=v===sequence[i];const nextAnswer=[...answer,v];setAnswer(nextAnswer);if(!ok){setStreak(0);setScore(s=>Math.max(0,s-5));return;}setScore(s=>s+10);const ns=streak+1;setStreak(ns);setBest(b=>Math.max(b,ns));if(i===sequence.length-1){if(round===ROUNDS-1)setFinished(true);else{setRound(r=>r+1);window.setTimeout(()=>{const n=6+Math.floor((round+1)/2);setSequence(makeSequence(n));setAnswer([])},500)}}};const options=useMemo(()=>Array.from(new Set([...sequence,...ITEMS])).sort(()=>Math.random()-.5).slice(0,8),[sequence]);return <main className="game-shell"><div className="game-topbar"><Link href="/" className="game-back">← FORGE</Link><div className="game-progress">{started&&!finished?`${round+1}/${ROUNDS}`:"CONSISTENCY"}</div></div>{!started&&<section className="game-intro"><div className="eyebrow">CONSISTENCY · RELIABLE PERFORMANCE</div><h1>Can you repeat a good process?</h1><p>Remember a sequence, rebuild it exactly, then do it again as the sequence grows. Consistency is measured by how reliably you perform—not by one lucky attempt.</p><div className="rule-pills"><span>6 → 9 items</span><span>8 rounds</span><span>Build a streak</span></div><button className="btn btn-primary" onClick={start}>Start Consistency</button></section>}{started&&!finished&&<section className="game-stage"><div className="target-card"><span>MEMORIZE</span><strong>{sequence.length} ITEMS</strong></div><div className="focus-grid sequence-grid">{sequence.map((x,i)=><div key={i} className={`focus-cell sequence-cell ${i<answer.length?"armed":""}`}><span>{i<answer.length?x:"?"}</span></div>)}</div><div className="recall-answer">{answer.map((v,i)=><span key={i}>{v}</span>)}{Array.from({length:sequence.length-answer.length}).map((_,i)=><span key={i} className="empty">·</span>)}</div><div className="recall-options">{options.map(v=><button key={v} className="recall-key" onClick={()=>pick(v)}>{v}</button>)}</div><div className="live-stats"><span>ROUND <b>{round+1}</b></span><span>STREAK <b>{streak}</b></span><span>SCORE <b>{score}</b></span></div><p className="game-hint">Repeat the process. Do not chase speed; aim for reliable accuracy.</p></section>}{finished&&<section className="result-card"><div className="eyebrow">CONSISTENCY COMPLETE</div><div className="result-score">{score}</div><div className="result-label">CONSISTENCY SCORE</div><div className="result-stats"><div><strong>{best}</strong><span>best streak</span></div><div><strong>{ROUNDS}</strong><span>rounds</span></div><div><strong>+3</strong><span>difficulty steps</span></div></div><p>Your consistency is reflected in how reliably you repeated the same process as the task became more demanding.</p><div className="cta-row"><button className="btn btn-primary" onClick={start}>Try again</button><Link href="/" className="btn btn-secondary">I'm done</Link></div></section>}</main>}
+const ITEMS = ["●", "■", "▲", "◆", "★", "✚", "✦", "⬟", "⬢", "✿", "☀", "❖"];
+const SETS = [5, 7];
+
+function makeSet(count: number) {
+  const shuffled = [...ITEMS].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
+export default function ConsistencyChallenge() {
+  const [started, setStarted] = useState(false);
+  const [finished, setFinished] = useState(false);
+  const [challenge, setChallenge] = useState(0);
+  const [images, setImages] = useState<string[]>([]);
+  const [firstPick, setFirstPick] = useState<string[]>([]);
+  const [secondPick, setSecondPick] = useState<string[]>([]);
+  const [phase, setPhase] = useState<"first" | "second">("first");
+  const [scores, setScores] = useState<number[]>([]);
+
+  const count = SETS[challenge];
+  const selected = phase === "first" ? firstPick : secondPick;
+
+  const beginChallenge = (index: number) => {
+    const set = makeSet(SETS[index]);
+    setChallenge(index);
+    setImages(set);
+    setFirstPick([]);
+    setSecondPick([]);
+    setPhase("first");
+  };
+
+  const start = () => {
+    setStarted(true);
+    setFinished(false);
+    setScores([]);
+    beginChallenge(0);
+  };
+
+  const choose = (image: string) => {
+    if (selected.includes(image)) return;
+    if (selected.length >= count) return;
+    if (phase === "first") setFirstPick([...firstPick, image]);
+    else setSecondPick([...secondPick, image]);
+  };
+
+  const redo = () => {
+    setSecondPick([]);
+    setPhase("second");
+  };
+
+  const submit = () => {
+    const score = firstPick.length === 0 ? 0 : Math.round(
+      (secondPick.filter((x, i) => x === firstPick[i]).length / firstPick.length) * 100,
+    );
+    const nextScores = [...scores, score];
+    setScores(nextScores);
+    if (challenge === SETS.length - 1) setFinished(true);
+    else beginChallenge(challenge + 1);
+  };
+
+  const consistency = useMemo(() => {
+    if (!scores.length) return 0;
+    return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  }, [scores]);
+
+  return (
+    <main className="game-shell">
+      <div className="game-topbar">
+        <Link href="/" className="game-back">← FORGE</Link>
+        <div className="game-progress">{started && !finished ? `CHALLENGE ${challenge + 1}/2` : "CONSISTENCY"}</div>
+      </div>
+
+      {!started && (
+        <section className="game-intro">
+          <div className="eyebrow">CONSISTENCY · REPEATABILITY</div>
+          <h1>Can you repeat what you just did?</h1>
+          <p>
+            First choose the images in an order that feels natural. Then repeat the same selection
+            in exactly the same order. Your consistency is based on how closely the second attempt
+            matches the first—not how quickly you tap.
+          </p>
+          <div className="rule-pills"><span>5 images</span><span>Then 7</span><span>Order matters</span></div>
+          <button className="btn btn-primary" onClick={start}>Start Consistency</button>
+        </section>
+      )}
+
+      {started && !finished && (
+        <section className="game-stage">
+          <div className="target-card">
+            <span>{phase === "first" ? "CHOOSE YOUR ORDER" : "REPEAT YOUR ORDER"}</span>
+            <strong>{selected.length}/{count}</strong>
+          </div>
+
+          <p className="game-hint">
+            {phase === "first"
+              ? `Choose ${count} images from the set. There is no speed test. The order you create becomes your pattern.`
+              : `Now repeat the exact same ${count} images in the same order. Do not rely on speed.`}
+          </p>
+
+          <div className="consistency-image-grid">
+            {images.map((image) => (
+              <button
+                key={image}
+                className={`consistency-image ${selected.includes(image) ? "selected" : ""}`}
+                onClick={() => choose(image)}
+              >
+                <span>{image}</span>
+                {selected.includes(image) && <small>{selected.indexOf(image) + 1}</small>}
+              </button>
+            ))}
+          </div>
+
+          {selected.length === count && phase === "first" && (
+            <button className="btn btn-primary" onClick={redo}>Repeat the order</button>
+          )}
+          {selected.length === count && phase === "second" && (
+            <button className="btn btn-primary" onClick={submit}>Check consistency</button>
+          )}
+
+          <div className="live-stats">
+            <span>CHALLENGE <b>{challenge + 1}/2</b></span>
+            <span>IMAGES <b>{count}</b></span>
+            <span>PREVIOUS <b>{scores.length ? `${scores[scores.length - 1]}%` : "—"}</b></span>
+          </div>
+        </section>
+      )}
+
+      {finished && (
+        <section className="result-card">
+          <div className="eyebrow">CONSISTENCY COMPLETE</div>
+          <div className="result-score">{consistency}%</div>
+          <div className="result-label">OVERALL CONSISTENCY</div>
+          <div className="result-stats">
+            <div><strong>{scores[0]}%</strong><span>5-image match</span></div>
+            <div><strong>{scores[1]}%</strong><span>7-image match</span></div>
+            <div><strong>2</strong><span>challenges</span></div>
+          </div>
+          <p>
+            This score reflects how reliably you reproduced your own decisions. The aim is not to
+            tap faster; it is to create a pattern and reproduce it accurately.
+          </p>
+          <div className="cta-row">
+            <button className="btn btn-primary" onClick={start}>Try again</button>
+            <Link href="/" className="btn btn-secondary">I'm done</Link>
+          </div>
+        </section>
+      )}
+    </main>
+  );
+}
