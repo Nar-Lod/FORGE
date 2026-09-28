@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const skills = [
-  ["Focus", "Hold attention when distractions compete."],
-  ["Control", "Follow the intended rule instead of the impulse."],
-  ["Patience", "Delay the easy reward and wait for the better one."],
-  ["Persistence", "Keep adapting after difficulty or failure."],
-  ["Consistency", "Perform reliably across repeated attempts."],
+  ["Focus", "Hold attention when distractions compete.", "/challenges/focus"],
+  ["Control", "Follow the intended rule instead of the impulse.", "/challenges/switch"],
+  ["Patience", "Delay the easy reward and wait for the better one.", "/skills/patience"],
+  ["Persistence", "Keep adapting after difficulty or failure.", "/skills/persistence"],
+  ["Consistency", "Perform reliably across repeated attempts.", "/skills/consistency"],
 ];
 
 const fallbackMetrics = [["Focus", 0], ["Control", 0], ["Patience", 0], ["Persistence", 0], ["Consistency", 0]];
@@ -44,7 +44,7 @@ export default function Home() {
           <div className="card score-card"><div><div className="card-label">Forge score</div><div className="score">{overall}</div><div className="percentile">{overall ? "Your current training score" : "Complete a challenge to begin"}</div><div className="progress"><div style={{ width: `${overall}%` }} /></div></div><div><div className="card-label">Development signal</div><p style={{ marginBottom: 0 }}>{sessions ? `${sessions} deliberate session${sessions === 1 ? "" : "s"} recorded.` : "No sessions yet. Your first score starts the profile."}</p></div></div>
         </section>
 
-        <section className="section"><div className="section-title"><div><h2>Five skills. One training system.</h2><p>Play for a few minutes. Leave better than you arrived.</p></div></div><div className="challenge-grid">{skills.map(([name, description], i) => <article className="card challenge" key={name}><div className="icon">0{i + 1}</div><div><strong>{name}</strong><p>{description}</p></div></article>)}</div></section>
+        <section className="section"><div className="section-title"><div><h2>Five skills. One training system.</h2><p>Play for a few minutes. Leave better than you arrived.</p></div></div><div className="challenge-grid">{skills.map(([name, description, href], i) => <Link href={href} className="card challenge challenge-link" key={name}><div className="icon">0{i + 1}</div><div><strong>{name}</strong><p>{description}</p><span className="card-action">Open training →</span></div></Link>)}</div></section>
 
         <section className="section"><div className="card switch"><div><div className="eyebrow">The signature challenge</div><h2>Feeling the urge to scroll?</h2><p>Try a 60-second Switch challenge. Interrupt the impulse, solve a focused task, measure the result, then get back to what you actually wanted to do.</p></div><Link className="btn btn-primary" href="/challenges/switch">Try Switch · 60s</Link></div></section>
 
