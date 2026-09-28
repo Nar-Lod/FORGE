@@ -3,56 +3,76 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-const TARGETS = ["△", "●", "■", "◆"];
-const ROUNDS = 12;
-
-function nextTarget(previous: string) {
-  const choices = TARGETS.filter((item) => item !== previous);
-  return choices[Math.floor(Math.random() * choices.length)];
-}
+const ROUNDS = 18;
+const SHAPES = ["●", "▲", "◆", "■", "✦", "⬟", "✚", "⬢"];
+const GRID_SIZE = 30;
 
 export default function FocusChallenge() {
-  const [round, setRound] = useState(1);
+  const [round, setRound] = useState(0);
   const [target, setTarget] = useState("●");
-  const [grid, setGrid] = useState<string[]>([]);
-  const [hits, setHits] = useState(0);
-  const [mistakes, setMistakes] = useState(0);
+  const [targetCell, setTargetCell] = useState(-1);
+  const [visible, setVisible] = useState(false);
   const [started, setStarted] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [hits, setHits] = useState(0);
+  const [mistakes, setMistakes] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
   const [reactionTotal, setReactionTotal] = useState(0);
   const [shownAt, setShownAt] = useState(0);
 
+  const difficulty = Math.min(1, round / (ROUNDS - 1));
+  const visibleMs = Math.round(900 - difficulty * 430);
   const score = useMemo(() => {
     if (!finished) return 0;
     const accuracy = hits / Math.max(1, hits + mistakes);
     const averageReaction = reactionTotal / Math.max(1, hits);
-    const reactionBonus = Math.max(0, 1 - averageReaction / 1800);
-    return Math.round(Math.max(0, accuracy * 80 + reactionBonus * 20));
-  }, [finished, hits, mistakes, reactionTotal]);
+    const speed = Math.max(0, 1 - averageReaction / 1300);
+    const streakBonus = Math.min(10, bestStreak * 0.8);
+    return Math.round(Math.min(100, accuracy * 65 + speed * 25 + streakBonus));
+  }, [finished, hits, mistakes, reactionTotal, bestStreak]);
 
-  const createRound = useCallback((currentTarget: string) => {
-    const cells = Array.from({ length: 16 }, () => TARGETS[Math.floor(Math.random() * TARGETS.length)]);
-    cells[Math.floor(Math.random() * cells.length)] = currentTarget;
-    setGrid(cells);
+  const createRound = useCallback(() => {
+    const nextTarget = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+    const nextCell = Math.floor(Math.random() * GRID_SIZE);
+    setTarget(nextTarget);
+    setTargetCell(nextCell);
+    setVisible(true);
     setShownAt(performance.now());
-  }, []);
+    window.setTimeout(() => setVisible(false), visibleMs);
+  }, [visibleMs]);
 
   const start = () => {
-    setStarted(true); setFinished(false); setRound(1); setHits(0); setMistakes(0); setReactionTotal(0); setTarget("●"); createRound("●");
+    setStarted(true); setFinished(false); setRound(0); setHits(0); setMistakes(0);
+    setStreak(0); setBestStreak(0); setReactionTotal(0);
+    window.setTimeout(createRound, 300);
   };
 
-  const choose = (symbol: string) => {
-    if (!started || finished) return;
+  const choose = (index: number) => {
+    if (!started || finished || !visible) return;
     const reaction = performance.now() - shownAt;
-    if (symbol === target) { setHits((value) => value + 1); setReactionTotal((value) => value + reaction); }
-    else setMistakes((value) => value + 1);
-    if (round >= ROUNDS) setFinished(true);
-    else { const next = nextTarget(target); setTarget(next); setRound((value) => value + 1); createRound(next); }
+    if (index === targetCell) {
+      const nextStreak = streak + 1;
+      setHits((value) => value + 1); setStreak(nextStreak);
+      setBestStreak((value) => Math.max(value, nextStreak));
+      setReactionTotal((value) => value + reaction);
+    } else {
+      setMistakes((value) => value + 1); setStreak(0);
+    }
+    setVisible(false);
+    if (round >= ROUNDS - 1) setFinished(true);
+    else {
+      setRound((value) => value + 1);
+      window.setTimeout(createRound, 180 + Math.random() * 280);
+    }
   };
 
   useEffect(() => {
     if (!started || finished) return;
-    const onKey = (event: KeyboardEvent) => { const index = Number(event.key) - 1; if (index >= 0 && index < TARGETS.length) choose(TARGETS[index]); };
+    const onKey = (event: KeyboardEvent) => {
+      const index = Number(event.key) - 1;
+      if (index >= 0 && index < GRID_SIZE) choose(index);
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
@@ -68,10 +88,10 @@ export default function FocusChallenge() {
 
   return (
     <main className="game-shell">
-      <div className="game-topbar"><Link href="/" className="game-back">← FORGE</Link><div className="game-progress">{started && !finished ? `${round}/${ROUNDS}` : "FOCUS"}</div></div>
-      {!started && !finished && <section className="game-intro"><div className="eyebrow">FOCUS · 60–90 SEC</div><h1>Find the target.<br />Ignore everything else.</h1><p>You will see a field of symbols. Tap the symbol named at the top. Speed matters, but accuracy matters more.</p><button className="btn btn-primary" onClick={start}>Begin Focus</button></section>}
-      {started && !finished && <section className="game-stage"><div className="target-card"><span>FIND</span><strong>{target}</strong></div><div className="symbol-grid">{grid.map((symbol, index) => <button key={`${round}-${index}`} className="symbol-cell" onClick={() => choose(symbol)} aria-label={`symbol ${symbol}`}>{symbol}</button>)}</div><p className="game-hint">Keyboard: 1 △ · 2 ● · 3 ■ · 4 ◆</p></section>}
-      {finished && <section className="result-card"><div className="eyebrow">CHALLENGE COMPLETE</div><div className="result-score">{score}</div><div className="result-label">FOCUS SCORE</div><div className="result-stats"><div><strong>{hits}</strong><span>correct</span></div><div><strong>{mistakes}</strong><span>mistakes</span></div><div><strong>{ROUNDS}</strong><span>rounds</span></div></div><p>Your score has been added to your local FORGE profile. Accuracy is your foundation; next time, keep it while reacting faster.</p><div className="cta-row"><button className="btn btn-primary" onClick={start}>Try again</button><Link href="/" className="btn btn-secondary">I'm done</Link></div></section>}
+      <div className="game-topbar"><Link href="/" className="game-back">← FORGE</Link><div className="game-progress">{started && !finished ? `${round + 1}/${ROUNDS}` : "FOCUS"}</div></div>
+      {!started && !finished && <section className="game-intro"><div className="eyebrow">FOCUS · 60–90 SEC</div><h1>Catch it before it disappears.</h1><p>A shape will flash somewhere in the field. Find its exact position and tap it while it is visible. Every round moves, changes and gets faster.</p><div className="rule-pills"><span>Accuracy first</span><span>18 rounds</span><span>Gets faster</span></div><button className="btn btn-primary" onClick={start}>Begin Focus</button></section>}
+      {started && !finished && <section className="game-stage"><div className="target-card"><span>WATCH FOR</span><strong>{target}</strong></div><div className={`focus-grid ${visible ? "target-visible" : "target-hidden"}`}>{Array.from({ length: GRID_SIZE }, (_, index) => <button key={`${round}-${index}`} className={`focus-cell ${visible && index === targetCell ? "focus-target" : ""}`} onClick={() => choose(index)} aria-label={visible && index === targetCell ? "target" : "field position"}>{visible && index === targetCell ? target : ""}</button>)}</div><div className="live-stats"><span>STREAK <b>{streak}</b></span><span>HITS <b>{hits}</b></span><span>MISS <b>{mistakes}</b></span></div><p className="game-hint">The target disappears quickly. Don't guess — find it.</p></section>}
+      {finished && <section className="result-card"><div className="eyebrow">CHALLENGE COMPLETE</div><div className="result-score">{score}</div><div className="result-label">FOCUS SCORE</div><div className="result-stats"><div><strong>{hits}</strong><span>correct</span></div><div><strong>{mistakes}</strong><span>misses</span></div><div><strong>{bestStreak}</strong><span>best streak</span></div></div><p>{score >= 80 ? "Strong recovery and attention. Now try to beat your own score without extending the session." : "You can recover. Change your strategy, slow down when needed, and try one more deliberate attempt."}</p><div className="cta-row"><button className="btn btn-primary" onClick={start}>Try a harder round</button><Link href="/" className="btn btn-secondary">I'm done</Link></div></section>}
     </main>
   );
 }
