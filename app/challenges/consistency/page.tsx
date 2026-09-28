@@ -4,11 +4,14 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 
 const ITEMS = ["●", "■", "▲", "◆", "★", "✚", "✦", "⬟", "⬢", "✿", "☀", "❖"];
-const SETS = [5, 7];
+const SETS = [5, 7, 7];
 
-function makeSet(count: number) {
-  const shuffled = [...ITEMS].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count);
+function makeSet(count = 10) {
+  return [...ITEMS].sort(() => Math.random() - 0.5).slice(0, count);
+}
+
+function shuffle<T>(items: T[]) {
+  return [...items].sort(() => Math.random() - 0.5);
 }
 
 export default function ConsistencyChallenge() {
@@ -23,11 +26,11 @@ export default function ConsistencyChallenge() {
 
   const count = SETS[challenge];
   const selected = phase === "first" ? firstPick : secondPick;
+  const shuffledPositions = challenge === 2 && phase === "second";
 
   const beginChallenge = (index: number) => {
-    const set = makeSet(SETS[index]);
     setChallenge(index);
-    setImages(set);
+    setImages(makeSet());
     setFirstPick([]);
     setSecondPick([]);
     setPhase("first");
@@ -41,23 +44,30 @@ export default function ConsistencyChallenge() {
   };
 
   const choose = (image: string) => {
-    if (selected.includes(image)) return;
-    if (selected.length >= count) return;
-    if (phase === "first") setFirstPick([...firstPick, image]);
-    else setSecondPick([...secondPick, image]);
+    if (selected.includes(image) || selected.length >= count) return;
+    if (phase === "first") setFirstPick((current) => [...current, image]);
+    else setSecondPick((current) => [...current, image]);
   };
 
   const redo = () => {
+    if (challenge === 2) setImages(shuffle(firstPick));
     setSecondPick([]);
     setPhase("second");
   };
 
   const submit = () => {
-    const score = firstPick.length === 0 ? 0 : Math.round(
-      (secondPick.filter((x, i) => x === firstPick[i]).length / firstPick.length) * 100,
-    );
+    const score =
+      firstPick.length === 0
+        ? 0
+        : Math.round(
+            (secondPick.filter((item, index) => item === firstPick[index]).length /
+              firstPick.length) *
+              100,
+          );
+
     const nextScores = [...scores, score];
     setScores(nextScores);
+
     if (challenge === SETS.length - 1) setFinished(true);
     else beginChallenge(challenge + 1);
   };
@@ -71,7 +81,9 @@ export default function ConsistencyChallenge() {
     <main className="game-shell">
       <div className="game-topbar">
         <Link href="/" className="game-back">← FORGE</Link>
-        <div className="game-progress">{started && !finished ? `CHALLENGE ${challenge + 1}/2` : "CONSISTENCY"}</div>
+        <div className="game-progress">
+          {started && !finished ? "CHALLENGE " + (challenge + 1) + "/3" : "CONSISTENCY"}
+        </div>
       </div>
 
       {!started && (
@@ -79,11 +91,14 @@ export default function ConsistencyChallenge() {
           <div className="eyebrow">CONSISTENCY · REPEATABILITY</div>
           <h1>Can you repeat what you just did?</h1>
           <p>
-            First choose the images in an order that feels natural. Then repeat the same selection
-            in exactly the same order. Your consistency is based on how closely the second attempt
-            matches the first—not how quickly you tap.
+            First choose your own order. Then reproduce that exact order. In the final challenge,
+            the positions change, so you must remember the images themselves—not where you first saw them.
           </p>
-          <div className="rule-pills"><span>5 images</span><span>Then 7</span><span>Order matters</span></div>
+          <div className="rule-pills">
+            <span>5 from 10</span>
+            <span>7 from 10</span>
+            <span>7 with shuffled positions</span>
+          </div>
           <button className="btn btn-primary" onClick={start}>Start Consistency</button>
         </section>
       )}
@@ -91,22 +106,32 @@ export default function ConsistencyChallenge() {
       {started && !finished && (
         <section className="game-stage">
           <div className="target-card">
-            <span>{phase === "first" ? "CHOOSE YOUR ORDER" : "REPEAT YOUR ORDER"}</span>
+            <span>
+              {phase === "first"
+                ? "CHOOSE YOUR ORDER"
+                : shuffledPositions
+                  ? "REBUILD YOUR ORDER"
+                  : "REPEAT YOUR ORDER"}
+            </span>
             <strong>{selected.length}/{count}</strong>
           </div>
 
           <p className="game-hint">
             {phase === "first"
-              ? `Choose ${count} images from the set. There is no speed test. The order you create becomes your pattern.`
-              : `Now repeat the exact same ${count} images in the same order. Do not rely on speed.`}
+              ? "Choose " + count + " images from the 10-image set in any order. The order you create becomes your pattern."
+              : shuffledPositions
+                ? "The same " + count + " images are here, but their positions have changed. Select them in the exact order you chose before."
+                : "Now repeat the exact same " + count + " images in the same order. There is no speed test."}
           </p>
 
           <div className="consistency-image-grid">
             {images.map((image) => (
               <button
                 key={image}
-                className={`consistency-image ${selected.includes(image) ? "selected" : ""}`}
+                type="button"
+                className={"consistency-image " + (selected.includes(image) ? "selected" : "")}
                 onClick={() => choose(image)}
+                aria-label={"Choose " + image}
               >
                 <span>{image}</span>
                 {selected.includes(image) && <small>{selected.indexOf(image) + 1}</small>}
@@ -115,16 +140,19 @@ export default function ConsistencyChallenge() {
           </div>
 
           {selected.length === count && phase === "first" && (
-            <button className="btn btn-primary" onClick={redo}>Repeat the order</button>
+            <button className="btn btn-primary" onClick={redo}>
+              {challenge === 2 ? "Shuffle positions & rebuild" : "Repeat the order"}
+            </button>
           )}
+
           {selected.length === count && phase === "second" && (
             <button className="btn btn-primary" onClick={submit}>Check consistency</button>
           )}
 
           <div className="live-stats">
-            <span>CHALLENGE <b>{challenge + 1}/2</b></span>
-            <span>IMAGES <b>{count}</b></span>
-            <span>PREVIOUS <b>{scores.length ? `${scores[scores.length - 1]}%` : "—"}</b></span>
+            <span>CHALLENGE <b>{challenge + 1}/3</b></span>
+            <span>SELECT <b>{count}</b></span>
+            <span>PREVIOUS <b>{scores.length ? scores[scores.length - 1] + "%" : "—"}</b></span>
           </div>
         </section>
       )}
@@ -137,11 +165,11 @@ export default function ConsistencyChallenge() {
           <div className="result-stats">
             <div><strong>{scores[0]}%</strong><span>5-image match</span></div>
             <div><strong>{scores[1]}%</strong><span>7-image match</span></div>
-            <div><strong>2</strong><span>challenges</span></div>
+            <div><strong>{scores[2]}%</strong><span>shuffled-position match</span></div>
           </div>
           <p>
-            This score reflects how reliably you reproduced your own decisions. The aim is not to
-            tap faster; it is to create a pattern and reproduce it accurately.
+            This score reflects how reliably you reproduced your own decisions. The final challenge
+            removes position memory: the images move, but your original order stays the same.
           </p>
           <div className="cta-row">
             <button className="btn btn-primary" onClick={start}>Try again</button>
