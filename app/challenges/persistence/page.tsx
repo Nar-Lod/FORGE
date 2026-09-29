@@ -89,13 +89,17 @@ export default function PersistenceChallenge() {
   };
 
   const choose = (item: Item) => {
-    if (showing || finished || submitted || answer.length >= length) return;
+    if (showing || finished || (submitted && lastResult === "correct") || answer.length >= length) return;
     if (answer.some((selected) => same(selected, item))) return;
+    setSubmitted(false);
+    setLastResult(null);
     setAnswer((current) => [...current, item]);
   };
 
   const removeFromAnswer = (index: number) => {
-    if (submitted) return;
+    if (finished || (submitted && lastResult === "correct")) return;
+    setSubmitted(false);
+    setLastResult(null);
     setAnswer((current) => current.filter((_, i) => i !== index));
   };
 
@@ -141,7 +145,10 @@ export default function PersistenceChallenge() {
       (item) => !sequence.some((original) => same(original, item)),
     );
 
-    return shuffle([...sequence, ...decoyPool.slice(0, Math.max(3, Math.min(6, length - 2)))]);
+    return shuffle([
+      ...sequence,
+      ...decoyPool.slice(0, Math.max(3, Math.min(6, length - 2))),
+    ]);
   }, [sequence, length]);
 
   return (
@@ -199,7 +206,7 @@ export default function PersistenceChallenge() {
                 {options.map((item) => (
                   <button
                     key={item.id}
-                    disabled={submitted}
+                    disabled={submitted && lastResult === "correct"}
                     className={`switch-tile sequence-option ${item.color}`}
                     onClick={() => choose(item)}
                   >
@@ -216,7 +223,7 @@ export default function PersistenceChallenge() {
                       key={`slot-${index}`}
                       className={`correction-slot ${item ? item.color : "empty"}`}
                       onClick={() => item && removeFromAnswer(index)}
-                      disabled={submitted}
+                      disabled={submitted && lastResult === "correct"}
                       aria-label={item ? `Remove item ${index + 1}` : `Empty position ${index + 1}`}
                     >
                       {item ? <span>{item.shape}</span> : <span>+</span>}
@@ -242,8 +249,9 @@ export default function PersistenceChallenge() {
                 <div className="game-hint correction-message">
                   <strong>{correctCount}/{length} in the correct position.</strong>
                   <span>
-                    Correct your sequence below. Tap a selected item to remove it,
-                    then choose the replacement from the board. Submit again when ready.
+                    Your arrangement is not correct yet. Tap a selected item to remove it,
+                    then choose its replacement from the board. You can correct as many
+                    positions as needed before submitting again.
                   </span>
                 </div>
               )}
