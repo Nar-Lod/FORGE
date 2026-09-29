@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./forge-ui.css";
 
 export const metadata: Metadata = {
   title: "FORGE — Train your ability to choose what you do next",
