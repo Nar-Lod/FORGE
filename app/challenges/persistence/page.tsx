@@ -10,17 +10,29 @@ const SHAPES = ["●", "■", "▲", "◆", "⬟", "⬢", "★", "✚", "✦", "
 const COLORS = ["red", "blue", "green", "yellow", "purple", "orange"];
 
 function shuffle<T>(items: T[]): T[] {
-  return [...items].sort(() => Math.random() - 0.5);
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
 }
 
+// Persistence deliberately uses unique SHAPES and unique COLOURS within
+// every level. The player must never have to distinguish two items by a
+// hidden code that looks identical on screen.
 function makeSequence(length: number): Item[] {
-  const combos: Item[] = [];
-  for (const shape of SHAPES) {
-    for (const color of COLORS) {
-      combos.push({ id: `${shape}-${color}`, shape, color });
-    }
-  }
-  return shuffle(combos).slice(0, length);
+  const count = Math.min(length, Math.min(SHAPES.length, COLORS.length));
+  const shapes = shuffle(SHAPES).slice(0, count);
+  const colors = shuffle(COLORS).slice(0, count);
+
+  return shuffle(
+    shapes.map((shape, index) => ({
+      id: `${shape}-${colors[index]}`,
+      shape,
+      color: colors[index],
+    })),
+  );
 }
 
 const same = (a: Item, b: Item) => a.id === b.id;
@@ -93,13 +105,19 @@ export default function PersistenceChallenge() {
 
   const choose = (item: Item) => {
     if (showing || finished || (submitted && lastResult === "correct")) return;
+
     if (replacementIndex !== null) {
-      setAnswer((current) => current.map((selected, index) => index === replacementIndex ? item : selected));
+      setAnswer((current) =>
+        current.map((selected, index) =>
+          index === replacementIndex ? item : selected,
+        ),
+      );
       setReplacementIndex(null);
       setSubmitted(false);
       setLastResult(null);
       return;
     }
+
     if (answer.length >= length || answer.some((selected) => same(selected, item))) return;
     setSubmitted(false);
     setLastResult(null);
@@ -150,18 +168,29 @@ export default function PersistenceChallenge() {
     window.setTimeout(() => startLevel(nextLevel), 900);
   };
 
+  // Build a completely distinct decoy pool too: no two visible options share
+  // a shape OR a colour. This prevents the interface itself from creating
+  // ambiguous choices for the player.
   const options = useMemo(() => {
     if (!sequence.length) return [];
 
-    const decoyPool = makeSequence(Math.min(12, length + 4)).filter(
-      (item) => !sequence.some((original) => same(original, item)),
-    );
+    const usedShapes = new Set(sequence.map((item) => item.shape));
+    const usedColors = new Set(sequence.map((item) => item.color));
+    const unusedShapes = shuffle(SHAPES.filter((shape) => !usedShapes.has(shape)));
+    const unusedColors = shuffle(COLORS.filter((color) => !usedColors.has(color)));
 
-    return shuffle([
-      ...sequence,
-      ...decoyPool.slice(0, Math.max(3, Math.min(6, length - 2))),
-    ]);
-  }, [sequence, length]);
+    const decoys: Item[] = [];
+    const count = Math.min(unusedShapes.length, unusedColors.length, 4);
+    for (let i = 0; i < count; i += 1) {
+      decoys.push({
+        id: `${unusedShapes[i]}-${unusedColors[i]}`,
+        shape: unusedShapes[i],
+        color: unusedColors[i],
+      });
+    }
+
+    return shuffle([...sequence, ...decoys]);
+  }, [sequence]);
 
   return (
     <main className="game-shell">
@@ -177,13 +206,12 @@ export default function PersistenceChallenge() {
           <div className="eyebrow">PERSISTENCE · SEQUENCE MEMORY</div>
           <h1>Remember. Arrange. Adapt.</h1>
           <p>
-            Levels 1–4 let you study the complete sequence as long as you need.
-            From level 5 onward, the complete sequence disappears automatically
-            after a timed viewing window.
+            Every level uses visually distinct shapes and colours. You must remember
+            the exact sequence rather than relying on ambiguous look-alike objects.
           </p>
           <div className="rule-pills">
             <span>5 → 12 unique items</span>
-            <span>Arrange when ready</span>
+            <span>Distinct shape + colour</span>
             <span>Timed from level 5</span>
           </div>
           <button className="btn btn-primary" onClick={begin}>Start Persistence</button>
@@ -254,7 +282,7 @@ export default function PersistenceChallenge() {
 
               {replacementIndex !== null && (
                 <p className="game-hint">
-                  Position {replacementIndex + 1} is selected. Choose a different item from the board to replace it.
+                  Position {replacementIndex + 1} is selected. Choose its replacement from the board.
                 </p>
               )}
 
@@ -274,8 +302,7 @@ export default function PersistenceChallenge() {
                 <div className="game-hint correction-message">
                   <strong>{correctCount}/{length} in the correct position.</strong>
                   <span>
-                    Tap any selected position above to replace that exact item, then choose
-                    its replacement from the board. Submit again when the full sequence is ready.
+                    Tap a selected position to replace it, then choose the replacement from the distinct items above.
                   </span>
                 </div>
               )}
@@ -292,9 +319,9 @@ export default function PersistenceChallenge() {
           <p className="game-hint">
             {showing
               ? manual
-                ? "Study every item, its colour and its order. Press Arrange only when you have memorized the complete sequence."
-                : "Study the complete sequence, including each item's colour. It will disappear automatically."
-              : "Build the exact sequence. Shape + colour identify each item, so visually similar shapes are deliberately separated by colour."}
+                ? "Study every shape, colour and its order. Press Arrange when you have memorized the complete sequence."
+                : "Study the complete sequence. Every item has a unique shape and colour. It will disappear automatically."
+              : "Rebuild the exact sequence. Every visible choice is visually distinct in both shape and colour."}
           </p>
         </section>
       )}
@@ -310,8 +337,7 @@ export default function PersistenceChallenge() {
             <div><strong>{best}</strong><span>best score</span></div>
           </div>
           <p>
-            You progressed from deliberate study into timed memory pressure while
-            adapting to longer sequences.
+            You progressed from deliberate study into timed memory pressure while adapting to longer sequences.
           </p>
           <div className="cta-row">
             <button className="btn btn-primary" onClick={begin}>Try again</button>
