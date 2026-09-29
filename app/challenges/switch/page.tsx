@@ -9,39 +9,33 @@ const ITEMS = [
   {name:"TRIANGLE",icon:"▲"},{name:"SQUARE",icon:"■"},{name:"FLOWER",icon:"✿"},{name:"HEX",icon:"⬢"}
 ];
 const COLORS = ["RED","BLUE","GREEN","YELLOW","PURPLE","ORANGE"];
-type Rule = {mode:"tap"|"avoid"; item:string; color:string};
+type Rule = {mode:"tap"|"avoid"; type:"item"|"color"; value:string};
 type Stimulus = {id:number; item:string; icon:string; color:string};
-
 function randomOf<T>(a:T[]){return a[Math.floor(Math.random()*a.length)];}
 function makeRound(round:number){
   const mode:Rule["mode"] = round>0 && round%3===0 ? "avoid" : Math.random()<.55 ? "tap" : "avoid";
+  const type:Rule["type"] = Math.random()<.5 ? "item" : "color";
   const item=randomOf(ITEMS), color=randomOf(COLORS);
-  const target = Math.random()<.5 ? `item:${item.name}` : `color:${color}`;
-  const rule:Rule={mode,item:target.startsWith("item:")?target.slice(5):item.name,color:target.startsWith("color:")?target.slice(6):color};
-  const useColor=target.startsWith("color:");
+  const rule:Rule={mode,type,value:type==="item"?item.name:color};
   const stream:Stimulus[]=Array.from({length:10},(_,id)=>{const candidate=randomOf(ITEMS);return {id,item:candidate.name,icon:candidate.icon,color:randomOf(COLORS)}});
-  // Guarantee several true targets and several near-miss distractors.
   for(let i=0;i<stream.length;i++){
     const hit=i===4||i===8||i===(round%10);
-    if(hit){stream[i]=useColor?{id,item:randomOf(ITEMS).name,icon:randomOf(ITEMS).icon,color:rule.color}:{id,item:rule.item,icon:ITEMS.find(x=>x.name===rule.item)?.icon||item.icon,color:randomOf(COLORS)};}
+    if(hit){stream[i]=type==="color"?{id,item:randomOf(ITEMS).name,icon:randomOf(ITEMS).icon,color:rule.value}:{id,item:rule.value,icon:ITEMS.find(x=>x.name===rule.value)?.icon||item.icon,color:randomOf(COLORS)};}
   }
-  return {rule,stream,useColor};
+  return {rule,stream};
 }
-function matches(s:Stimulus,r:Rule){return r.item.startsWith("item:")?s.item===r.item.slice(5):s.color===r.color;}
+function matches(s:Stimulus,r:Rule){return r.type==="item"?s.item===r.value:s.color===r.value;}
 
 export default function SwitchChallenge(){
  const[started,setStarted]=useState(false),[finished,setFinished]=useState(false),[round,setRound]=useState(0),[rule,setRule]=useState<Rule|null>(null),[stream,setStream]=useState<Stimulus[]>([]),[index,setIndex]=useState(0),[armed,setArmed]=useState(false),[correct,setCorrect]=useState(0),[mistakes,setMistakes]=useState(0),[misses,setMisses]=useState(0),[streak,setStreak]=useState(0),[bestStreak,setBestStreak]=useState(0),[last,setLast]=useState<"hit"|"miss"|null>(null);
  const current=stream[index];
  const startRound=(n:number)=>{const r=makeRound(n);setRule(r.rule);setStream(r.stream);setIndex(0);setArmed(false);setLast(null);window.setTimeout(()=>setArmed(true),650);};
  const begin=()=>{setStarted(true);setFinished(false);setRound(0);setCorrect(0);setMistakes(0);setMisses(0);setStreak(0);setBestStreak(0);startRound(0);};
- // Each stimulus is a short appearance window followed by a blank. A response
- // is only accepted during the appearance window, so missing a required tap is
- // itself a measurable control error.
- useEffect(()=>{if(!started||finished||!armed)return;const t=window.setTimeout(()=>{const shouldTap=current&&rule&&matches(current,rule);if(shouldTap){setMisses(v=>v+1);setStreak(0);setLast("miss");}advance();},900);return()=>window.clearTimeout(t)},[index,armed,started,finished,current,rule]);
- const advance=()=>{setArmed(false);setLast(null);if(index>=stream.length-1){if(round>=ROUNDS-1){setFinished(true);return;}const n=round+1;setRound(n);startRound(n);}else{const next=index+1;setIndex(next);window.setTimeout(()=>setArmed(true),220+Math.random()*500);}};
- const choose=()=>{if(!armed||finished||!current||!rule)return;const shouldTap=matches(current,rule);if((rule.mode==="tap"&&shouldTap)||(rule.mode==="avoid"&&!shouldTap)){setCorrect(v=>v+1);setStreak(v=>{const n=v+1;setBestStreak(b=>Math.max(b,n));return n});setLast("hit");}else{setMistakes(v=>v+1);setStreak(0);setLast("miss");}advance();};
- const ruleText=rule?(rule.mode==="tap"?(rule.item.startsWith("item:")?`TAP ONLY: ${rule.item.slice(5)}`:`TAP ONLY: ${rule.color} ITEMS`):(rule.item.startsWith("item:")?`DO NOT TAP: ${rule.item.slice(5)}`:`DO NOT TAP: ${rule.color} ITEMS`)):"LOADING RULE";
- const score=useMemo(()=>finished?Math.max(0,Math.min(100,Math.round((correct/ROUNDS)*65+(streak/Math.max(1,bestStreak))*15-(mistakes+misses)*1.5+20))):0,[finished,correct,streak,bestStreak,mistakes,misses]);
+ useEffect(()=>{if(!started||finished||!armed||!current||!rule)return;const t=window.setTimeout(()=>{if(matches(current,rule)){setMisses(v=>v+1);setStreak(0);setLast("miss");}advance();},900);return()=>window.clearTimeout(t)},[index,armed,started,finished,current,rule]);
+ const advance=()=>{setArmed(false);if(index>=stream.length-1){if(round>=ROUNDS-1){setFinished(true);return;}const n=round+1;setRound(n);startRound(n);}else{const next=index+1;setIndex(next);window.setTimeout(()=>setArmed(true),220+Math.random()*500);}};
+ const choose=()=>{if(!armed||finished||!current||!rule)return;const shouldTap=matches(current,rule);const success=rule.mode==="tap"?shouldTap:!shouldTap;if(success){setCorrect(v=>v+1);setStreak(v=>{const n=v+1;setBestStreak(b=>Math.max(b,n));return n});setLast("hit");}else{setMistakes(v=>v+1);setStreak(0);setLast("miss");}advance();};
+ const ruleText=rule?(rule.mode==="tap"?(rule.type==="item"?`TAP ONLY: ${rule.value}`:`TAP ONLY: ${rule.value} ITEMS`):(rule.type==="item"?`DO NOT TAP: ${rule.value}`:`DO NOT TAP: ${rule.value} ITEMS`)):"LOADING RULE";
+ const score=useMemo(()=>finished?Math.max(0,Math.min(100,Math.round((correct/ROUNDS)*65+(bestStreak/ROUNDS)*35-(mistakes+misses)*1.5))):0,[finished,correct,bestStreak,mistakes,misses]);
  useEffect(()=>{if(!finished)return;let previous:[string,number][]=[["Focus",0],["Control",0],["Patience",0],["Persistence",0],["Consistency",0]];try{previous=JSON.parse(window.localStorage.getItem("forge.metrics")||JSON.stringify(previous))}catch{}window.localStorage.setItem("forge.metrics",JSON.stringify(previous.map(([n,v])=>n==="Control"?[n,Math.max(v,score)]:[n,v])));},[finished,score]);
  return <main className="game-shell"><div className="game-topbar"><Link href="/" className="game-back">← FORGE</Link><div className="game-progress">{started&&!finished?`ROUND ${round+1}/${ROUNDS}`:"CONTROL"}</div></div>
  {!started&&<section className="game-intro"><div className="eyebrow">CONTROL · IMPULSE INHIBITION</div><h1>Don't trust your first impulse.</h1><p>Objects flash onto the field and disappear. Sometimes you must tap a target. Sometimes you must refuse it. Rules change, near-misses appear, and missed actions count too.</p><div className="rule-pills"><span>TAP rules</span><span>DO NOT TAP rules</span><span>30 rounds · changing signals</span></div><button className="btn btn-primary" onClick={begin}>Start Control</button></section>}
