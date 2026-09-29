@@ -6,7 +6,21 @@ import Link from "next/link";
 const WAIT_SECONDS = [10, 30, 60, 90, 180, 300, 600, 1200, 3000, 3600];
 const LAST_KEY = "forge.patience.lastScore";
 const LONG_MILESTONES = new Set([300, 600, 1200, 3000, 3600]);
-const reflectionPrompts = ["Reflect on your day. What actually mattered today?","Set one target for the rest of today that you will be glad you completed.","Think about a goal you care about. What is one small step you can take toward it?","Imagine you could restart today. How would you organize your perfect day?","What deserves more of your attention than your phone right now?","Picture the person you want to become. What would that person do next?"];
+
+const reflectionPrompts = [
+  { label: "BREATHE", text: "Take a slow breath in… and a slow breath out. Let your shoulders drop." },
+  { label: "TODAY", text: "What is one good thing you want to do today? Picture yourself actually doing it." },
+  { label: "GRATITUDE", text: "Think of one good thing that happened yesterday. What made that moment meaningful?" },
+  { label: "APPRECIATION", text: "What is one thing about being alive that you genuinely appreciate right now?" },
+  { label: "RESET", text: "If you could start today over, what would you change about how you used your time?" },
+  { label: "YOUR DAY", text: "Imagine your perfect day from waking up to going to sleep. What would you make time for?" },
+  { label: "PEOPLE", text: "Think about a funny, beautiful or unforgettable moment with your family or friends." },
+  { label: "SOMEONE", text: "Think about the person who means the most to you. What do you appreciate about them?" },
+  { label: "DELAYED", text: "What have you been postponing that you know you would feel good about finally starting?" },
+  { label: "PURPOSE", text: "What is one goal you keep saying matters to you? What is the smallest step toward it?" },
+  { label: "FAITH", text: "If faith is meaningful to you, take a moment to thank God for life, another day and the people you love." },
+  { label: "MEDITATE", text: "For the next few breaths, notice your breathing without changing it. Let thoughts come and go." },
+];
 
 function formatWait(seconds:number){
  if(seconds>=3600)return "1 hour";
@@ -53,12 +67,18 @@ export default function PatienceChallenge(){
  const currentPrompt=useMemo(()=>reflectionPrompts[Math.floor(elapsed/15000)%reflectionPrompts.length],[elapsed]);
 
  return <main className="game-shell">
-  <div className="game-topbar"><Link href="/" className="game-back">← FORGE</Link><div className="game-progress">{started&&!finished?`PATience · ${round+1}/${WAIT_SECONDS.length}`:"PATIENCE"}</div></div>
+  <div className="game-topbar"><Link href="/" className="game-back">← FORGE</Link><div className="game-progress">{started&&!finished?`PATIENCE · ${round+1}/${WAIT_SECONDS.length}`:"PATIENCE"}</div></div>
   {!started&&<section className="game-intro"><div className="eyebrow">PATIENCE · DELAYED REWARD</div><h1>Make waiting your advantage.</h1><p>The reward ladder starts at 10 seconds and grows: 30s, 60s, 90s, 3m, 5m, 10m, 20m, 50m, then 1 hour. At the longer milestones, FORGE celebrates the achievement and encourages you to leave the screen.</p><div className="rule-pills"><span>10s → 1 hour</span><span>Long waits unlock milestones</span><span>Phone-away by design</span></div><button className="btn btn-primary" onClick={()=>{begin();requestNotifications();}}>Start Patience</button></section>}
   {started&&!finished&&<section className="game-stage">
     <div className="target-card"><span>REWARD BUILDING · ROUND {round+1}</span><strong>{ready?"FULL REWARD AVAILABLE":"WAIT"}</strong></div>
     <div className="patience-meter"><div className="patience-fill" style={{width:`${Math.min(100,(elapsed/waitMs)*100)}%`}}/></div>
     <div className="patience-value">{ready?"REWARD READY":"NEXT REWARD IN "+formatWait(Math.max(0,Math.ceil((waitMs-elapsed)/1000)))}</div>
+    <div className="reflection-card" aria-live="polite">
+      <div className="reflection-kicker"><span className="reflection-pulse" /> USE THE WAIT</div>
+      <div className="reflection-label">{currentPrompt.label}</div>
+      <p>{currentPrompt.text}</p>
+      <div className="reflection-dots">{reflectionPrompts.map((_,i)=><span key={i} className={i===Math.floor(elapsed/15000)%reflectionPrompts.length?"active":""} />)}</div>
+    </div>
     <button className={`btn ${ready?"btn-primary":"btn-secondary"} patience-action`} onClick={ready?bank:earlyChoice}>{ready?`Bank reward · next ${formatWait(nextWait)}`:"Take the early option"}</button>
     <div className="live-stats"><span>WAIT <b>{formatWait(waitSeconds)}</b></span><span>BANKED <b>{banked}</b></span><span>EARLY <b>{early}</b></span></div>
     <p className="game-hint">{ready?"You waited. Choose deliberately.":isLong?"You do not need to watch this screen. Put the phone down and return when the reward is ready.":"Notice the urge to reach for the quick reward. Waiting is the challenge."}</p>
