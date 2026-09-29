@@ -37,6 +37,7 @@ export default function PersistenceChallenge() {
   const [wrong, setWrong] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [lastResult, setLastResult] = useState<"correct" | "wrong" | null>(null);
+  const [replacementIndex, setReplacementIndex] = useState<number | null>(null);
 
   const length = LEVELS[level];
   const manual = level < 4;
@@ -53,6 +54,7 @@ export default function PersistenceChallenge() {
     setAnswer([]);
     setSubmitted(false);
     setLastResult(null);
+    setReplacementIndex(null);
     setShowing(true);
   };
 
@@ -86,21 +88,29 @@ export default function PersistenceChallenge() {
     setAnswer([]);
     setSubmitted(false);
     setLastResult(null);
+    setReplacementIndex(null);
   };
 
   const choose = (item: Item) => {
-    if (showing || finished || (submitted && lastResult === "correct") || answer.length >= length) return;
-    if (answer.some((selected) => same(selected, item))) return;
+    if (showing || finished || (submitted && lastResult === "correct")) return;
+    if (replacementIndex !== null) {
+      setAnswer((current) => current.map((selected, index) => index === replacementIndex ? item : selected));
+      setReplacementIndex(null);
+      setSubmitted(false);
+      setLastResult(null);
+      return;
+    }
+    if (answer.length >= length || answer.some((selected) => same(selected, item))) return;
     setSubmitted(false);
     setLastResult(null);
     setAnswer((current) => [...current, item]);
   };
 
-  const removeFromAnswer = (index: number) => {
+  const selectSlotForReplacement = (index: number) => {
     if (finished || (submitted && lastResult === "correct")) return;
+    setReplacementIndex(index);
     setSubmitted(false);
     setLastResult(null);
-    setAnswer((current) => current.filter((_, i) => i !== index));
   };
 
   const correctCount = answer.reduce(
@@ -117,10 +127,12 @@ export default function PersistenceChallenge() {
     if (!correct) {
       setWrong((current) => current + 1);
       setLastResult("wrong");
+      setReplacementIndex(null);
       return;
     }
 
     setLastResult("correct");
+    setReplacementIndex(null);
     const nextScore = score + length * 10;
     setScore(nextScore);
 
@@ -203,28 +215,35 @@ export default function PersistenceChallenge() {
           {!showing && (
             <>
               <div className="option-grid">
-                {options.map((item) => (
-                  <button
-                    key={item.id}
-                    disabled={submitted && lastResult === "correct"}
-                    className={`switch-tile sequence-option ${item.color}`}
-                    onClick={() => choose(item)}
-                  >
-                    <span>{item.shape}</span>
-                  </button>
-                ))}
+                {options.map((item) => {
+                  const alreadySelected = answer.some((selected) => same(selected, item));
+                  return (
+                    <button
+                      key={item.id}
+                      disabled={
+                        (submitted && lastResult === "correct") ||
+                        (replacementIndex === null && alreadySelected)
+                      }
+                      className={`switch-tile sequence-option ${item.color} ${alreadySelected ? "selected-option" : ""}`}
+                      onClick={() => choose(item)}
+                    >
+                      <span>{item.shape}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="answer-strip">
                 {Array.from({ length }).map((_, index) => {
                   const item = answer[index];
+                  const replacing = replacementIndex === index;
                   return (
                     <button
                       key={`slot-${index}`}
-                      className={`correction-slot ${item ? item.color : "empty"}`}
-                      onClick={() => item && removeFromAnswer(index)}
-                      disabled={submitted && lastResult === "correct"}
-                      aria-label={item ? `Remove item ${index + 1}` : `Empty position ${index + 1}`}
+                      className={`correction-slot ${item ? item.color : "empty"} ${replacing ? "replacement-active" : ""}`}
+                      onClick={() => item && selectSlotForReplacement(index)}
+                      disabled={!item || (submitted && lastResult === "correct")}
+                      aria-label={item ? `Replace item ${index + 1}` : `Empty position ${index + 1}`}
                     >
                       {item ? <span>{item.shape}</span> : <span>+</span>}
                       <small>{index + 1}</small>
@@ -233,9 +252,15 @@ export default function PersistenceChallenge() {
                 })}
               </div>
 
+              {replacementIndex !== null && (
+                <p className="game-hint">
+                  Position {replacementIndex + 1} is selected. Choose a different item from the board to replace it.
+                </p>
+              )}
+
               <button
                 className="btn btn-primary"
-                disabled={answer.length !== length || (submitted && lastResult === "correct")}
+                disabled={answer.length !== length || replacementIndex !== null || (submitted && lastResult === "correct")}
                 onClick={submit}
               >
                 {lastResult === "correct"
@@ -249,9 +274,8 @@ export default function PersistenceChallenge() {
                 <div className="game-hint correction-message">
                   <strong>{correctCount}/{length} in the correct position.</strong>
                   <span>
-                    Your arrangement is not correct yet. Tap a selected item to remove it,
-                    then choose its replacement from the board. You can correct as many
-                    positions as needed before submitting again.
+                    Tap any selected position above to replace that exact item, then choose
+                    its replacement from the board. Submit again when the full sequence is ready.
                   </span>
                 </div>
               )}
