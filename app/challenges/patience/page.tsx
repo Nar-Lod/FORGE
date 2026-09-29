@@ -5,7 +5,6 @@ import Link from "next/link";
 
 const WAIT_SECONDS = [10, 30, 60, 90, 180, 300, 600, 1200, 3000, 3600];
 const LAST_KEY = "forge.patience.lastScore";
-const LONG_MILESTONES = new Set([300, 600, 1200, 3000, 3600]);
 
 const reflectionPrompts = [
   { label: "BREATHE", text: "Take a slow breath in… and a slow breath out. Let your shoulders drop." },
@@ -53,10 +52,7 @@ export default function PatienceChallenge(){
 
  useEffect(()=>{if(!started||finished)return;const tick=()=>{if(startedAt.current!==null)setElapsed(Date.now()-startedAt.current);};tick();const t=window.setInterval(tick,250);return()=>window.clearInterval(t)},[started,finished,round]);
  useEffect(()=>{if(ready&&isLong)notifyMilestone(waitSeconds)},[ready,isLong,waitSeconds]);
- useEffect(()=>{
-   const onVisible=()=>{if(document.visibilityState==="visible"&&startedAt.current!==null){setElapsed(Date.now()-startedAt.current);}};
-   document.addEventListener("visibilitychange",onVisible);return()=>document.removeEventListener("visibilitychange",onVisible);
- },[]);
+ useEffect(()=>{const onVisible=()=>{if(document.visibilityState==="visible"&&startedAt.current!==null)setElapsed(Date.now()-startedAt.current);};document.addEventListener("visibilitychange",onVisible);return()=>document.removeEventListener("visibilitychange",onVisible)},[]);
 
  const begin=()=>{setStarted(true);setFinished(false);setRound(0);setBanked(0);setEarly(0);setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();setPreviousBreak(Number(window.localStorage.getItem(LAST_KEY)||0));};
  const bank=()=>{if(!ready)return;if(round>=WAIT_SECONDS.length-1){setBanked(v=>v+1);setFinished(true);startedAt.current=null;return;}setBanked(v=>v+1);setRound(v=>v+1);setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();};
@@ -67,18 +63,14 @@ export default function PatienceChallenge(){
  const currentPrompt=useMemo(()=>reflectionPrompts[Math.floor(elapsed/15000)%reflectionPrompts.length],[elapsed]);
 
  return <main className="game-shell">
+  <style>{` .reflection-card{width:min(680px,100%);margin:24px auto 18px;padding:22px 24px;border:1px solid #384a25;border-radius:22px;background:radial-gradient(circle at 10% 0%,#c8ff3810,transparent 38%),linear-gradient(145deg,#121a0d,#0b1011);box-shadow:0 18px 55px #0008,inset 0 1px #ffffff0b;text-align:left;transition:box-shadow .3s,border-color .3s}.reflection-card:hover{border-color:#607d35;box-shadow:0 20px 65px #0009,0 0 35px #c8ff3810}.reflection-kicker{display:flex;align-items:center;gap:8px;color:#8ea965;font:700 9px 'Space Grotesk';letter-spacing:.18em}.reflection-pulse{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 14px #c8ff38;animation:forgePulse 1.8s ease-in-out infinite}.reflection-label{margin-top:13px;color:var(--accent);font:700 12px 'Space Grotesk';letter-spacing:.16em}.reflection-card p{margin:7px 0 14px;color:#e6ebdf;font:600 clamp(17px,2.5vw,22px)/1.35 'Space Grotesk';letter-spacing:-.02em}.reflection-dots{display:flex;gap:5px}.reflection-dots span{width:5px;height:5px;border-radius:50%;background:#33402b}.reflection-dots span.active{width:18px;border-radius:5px;background:var(--accent);box-shadow:0 0 10px #c8ff3866}@keyframes forgePulse{50%{opacity:.35;transform:scale(.75)}}@media(max-width:600px){.reflection-card{padding:18px;margin-top:18px}.reflection-card p{font-size:17px}.reflection-label{font-size:10px}}`}</style>
   <div className="game-topbar"><Link href="/" className="game-back">← FORGE</Link><div className="game-progress">{started&&!finished?`PATIENCE · ${round+1}/${WAIT_SECONDS.length}`:"PATIENCE"}</div></div>
   {!started&&<section className="game-intro"><div className="eyebrow">PATIENCE · DELAYED REWARD</div><h1>Make waiting your advantage.</h1><p>The reward ladder starts at 10 seconds and grows: 30s, 60s, 90s, 3m, 5m, 10m, 20m, 50m, then 1 hour. At the longer milestones, FORGE celebrates the achievement and encourages you to leave the screen.</p><div className="rule-pills"><span>10s → 1 hour</span><span>Long waits unlock milestones</span><span>Phone-away by design</span></div><button className="btn btn-primary" onClick={()=>{begin();requestNotifications();}}>Start Patience</button></section>}
   {started&&!finished&&<section className="game-stage">
     <div className="target-card"><span>REWARD BUILDING · ROUND {round+1}</span><strong>{ready?"FULL REWARD AVAILABLE":"WAIT"}</strong></div>
     <div className="patience-meter"><div className="patience-fill" style={{width:`${Math.min(100,(elapsed/waitMs)*100)}%`}}/></div>
     <div className="patience-value">{ready?"REWARD READY":"NEXT REWARD IN "+formatWait(Math.max(0,Math.ceil((waitMs-elapsed)/1000)))}</div>
-    <div className="reflection-card" aria-live="polite">
-      <div className="reflection-kicker"><span className="reflection-pulse" /> USE THE WAIT</div>
-      <div className="reflection-label">{currentPrompt.label}</div>
-      <p>{currentPrompt.text}</p>
-      <div className="reflection-dots">{reflectionPrompts.map((_,i)=><span key={i} className={i===Math.floor(elapsed/15000)%reflectionPrompts.length?"active":""} />)}</div>
-    </div>
+    <div className="reflection-card" aria-live="polite"><div className="reflection-kicker"><span className="reflection-pulse" /> USE THE WAIT</div><div className="reflection-label">{currentPrompt.label}</div><p>{currentPrompt.text}</p><div className="reflection-dots">{reflectionPrompts.map((_,i)=><span key={i} className={i===Math.floor(elapsed/15000)%reflectionPrompts.length?"active":""} />)}</div></div>
     <button className={`btn ${ready?"btn-primary":"btn-secondary"} patience-action`} onClick={ready?bank:earlyChoice}>{ready?`Bank reward · next ${formatWait(nextWait)}`:"Take the early option"}</button>
     <div className="live-stats"><span>WAIT <b>{formatWait(waitSeconds)}</b></span><span>BANKED <b>{banked}</b></span><span>EARLY <b>{early}</b></span></div>
     <p className="game-hint">{ready?"You waited. Choose deliberately.":isLong?"You do not need to watch this screen. Put the phone down and return when the reward is ready.":"Notice the urge to reach for the quick reward. Waiting is the challenge."}</p>
