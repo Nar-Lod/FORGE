@@ -1,28 +1,70 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
-const BANK_ROUNDS = 5;
-const BASE_WAIT_MS = 3000;
-const BREAK_TARGET_MS = 96000;
+const WAIT_SECONDS = [10, 30, 60, 90, 180, 300, 600, 1200, 3000, 3600];
 const LAST_KEY = "forge.patience.lastScore";
+const LONG_MILESTONES = new Set([300, 600, 1200, 3000, 3600]);
 const reflectionPrompts = ["Reflect on your day. What actually mattered today?","Set one target for the rest of today that you will be glad you completed.","Think about a goal you care about. What is one small step you can take toward it?","Imagine you could restart today. How would you organize your perfect day?","What deserves more of your attention than your phone right now?","Picture the person you want to become. What would that person do next?"];
 
+function formatWait(seconds:number){
+ if(seconds>=3600)return "1 hour";
+ if(seconds>=60)return `${seconds/60} min`;
+ return `${seconds}s`;
+}
+
 export default function PatienceChallenge(){
- const[started,setStarted]=useState(false),[finished,setFinished]=useState(false),[round,setRound]=useState(0),[elapsed,setElapsed]=useState(0),[banked,setBanked]=useState(0),[early,setEarly]=useState(0),[breakMode,setBreakMode]=useState(false),[breakElapsed,setBreakElapsed]=useState(0),[previousBreak,setPreviousBreak]=useState(0);
- const waitMs=BASE_WAIT_MS*Math.pow(2,round), ready=elapsed>=waitMs;
- useEffect(()=>{if(!started||finished||breakMode)return;const t=window.setInterval(()=>setElapsed(v=>v+50),50);return()=>window.clearInterval(t)},[started,finished,breakMode]);
- useEffect(()=>{if(!breakMode)return;const t=window.setInterval(()=>setBreakElapsed(v=>v+250),250);return()=>window.clearInterval(t)},[breakMode]);
- const beginRound=()=>{setElapsed(0)};
- const begin=()=>{setStarted(true);setFinished(false);setBreakMode(false);setRound(0);setBanked(0);setEarly(0);setElapsed(0);setBreakElapsed(0);setPreviousBreak(Number(window.localStorage.getItem(LAST_KEY)||0));};
- const choose=()=>{if(!started||finished||breakMode)return;if(!ready){setEarly(v=>v+1);setRound(v=>v+1);beginRound();return;}if(round>=BANK_ROUNDS-1){setBanked(v=>v+1);setBreakMode(true);setBreakElapsed(0);return;}setBanked(v=>v+1);setRound(v=>v+1);beginRound();};
- const collect=()=>{const seconds=Math.floor(breakElapsed/1000);setPreviousBreak(Number(window.localStorage.getItem(LAST_KEY)||0));window.localStorage.setItem(LAST_KEY,String(seconds));setFinished(true);setBreakMode(false);};
- const improvement=breakElapsed/1000-previousBreak;
- return <main className="game-shell"><div className="game-topbar"><Link href="/" className="game-back">← FORGE</Link><div className="game-progress">{breakMode?"PHONE BREAK":started&&!finished?`ROUND ${round+1}/6`:"PATIENCE"}</div></div>
- {!started&&<section className="game-intro"><div className="eyebrow">PATIENCE · DELAYED REWARD</div><h1>Make waiting harder—one round at a time.</h1><p>The reward is deliberately delayed. Each time you bank it, the next wait doubles: 3s, 6s, 12s, 24s, then 48s. The final stage moves the challenge away from the screen.</p><div className="rule-pills"><span>3 → 48 seconds</span><span>Reward doubles in delay</span><span>Phone-away finish</span></div><button className="btn btn-primary" onClick={begin}>Start Patience</button></section>}
- {started&&!finished&&!breakMode&&<section className="game-stage"><div className="target-card"><span>REWARD BUILDING</span><strong>{ready?"FULL REWARD AVAILABLE":"WAIT"}</strong></div><div className="patience-meter"><div className="patience-fill" style={{width:`${Math.min(100,(elapsed/waitMs)*100)}%`}}/></div><div className="patience-value">{ready?"FULL REWARD AVAILABLE":"NEXT REWARD IN "+Math.max(0,Math.ceil((waitMs-elapsed)/1000))+"s"}</div><button className={`btn ${ready?"btn-primary":"btn-secondary"} patience-action`} onClick={choose}>{ready?"Bank full reward":"Take the early option"}</button><div className="live-stats"><span>ROUND <b>{round+1}/6</b></span><span>WAIT <b>{Math.ceil(waitMs/1000)}s</b></span><span>BANKED <b>{banked}</b></span></div><p className="game-hint">{ready?"You waited. Choose deliberately.":"Notice the urge to reach for the quick reward. You can wait."}</p></section>}
- {breakMode&&!finished&&<section className="game-stage patience-break"><div className="eyebrow">THE FINAL PATIENCE TEST</div><h1>Now leave the phone.</h1><p className="break-lead">Put the phone down, lock it, or close FORGE completely. Your final reward grows while you are away. The longer you stay away, the more you bank.</p><div className="break-clock"><span>TIME AWAY</span><strong>{Math.floor(breakElapsed/1000)}s</strong></div><div className="break-reward">+{Math.floor(breakElapsed/1000)} PATIENCE POINTS</div><div className="reflection-card"><span>WHILE YOU WAIT</span><p>{reflectionPrompts[Math.floor(breakElapsed/15000)%reflectionPrompts.length]}</p></div><div className="break-stats"><div><span>TARGET</span><strong>{BREAK_TARGET_MS/1000}s</strong></div><div><span>LAST BREAK</span><strong>{previousBreak?previousBreak+"s":"—"}</strong></div></div><p className="break-guidance">The goal is not to watch this timer. Leave the phone and come back when you are ready to collect your reward. There is no need to stay on this screen.</p><button className="btn btn-primary patience-collect" onClick={collect}>Collect reward</button></section>}
- {finished&&<section className="result-card patience-result"><div className="eyebrow">PATIENCE COMPLETE</div><div className="result-score">{Math.floor(breakElapsed/1000)}</div><div className="result-label">PHONE-FREE PATIENCE POINTS</div><div className="result-stats"><div><strong>{banked}</strong><span>banked rounds</span></div><div><strong>{Math.floor(breakElapsed/1000)}s</strong><span>phone-free</span></div><div><strong>{improvement>=0?"+":""}{Math.floor(improvement)}s</strong><span>vs last break</span></div></div><div className="comparison-card"><strong>{previousBreak?"You are competing with your previous self.":"You just created your baseline."}</strong><p>{previousBreak?`Last break: ${previousBreak}s. This break: ${Math.floor(breakElapsed/1000)}s.`:"Next time, see whether you can beat this record."}</p></div><p>Improvement means having more control over when you use your phone—not spending more time inside FORGE.</p><div className="cta-row"><button className="btn btn-primary" onClick={begin}>Run Patience again</button><Link href="/" className="btn btn-secondary">I'm done</Link></div></section>}
+ const[started,setStarted]=useState(false),[finished,setFinished]=useState(false),[round,setRound]=useState(0),[elapsed,setElapsed]=useState(0),[banked,setBanked]=useState(0),[early,setEarly]=useState(0),[previousBreak,setPreviousBreak]=useState(0),[milestone,setMilestone]=useState<number|null>(null),[notificationEnabled,setNotificationEnabled]=useState(false);
+ const startedAt=useRef<number|null>(null);
+ const lastNotified=useRef(0);
+ const waitSeconds=WAIT_SECONDS[round] ?? WAIT_SECONDS[WAIT_SECONDS.length-1];
+ const waitMs=waitSeconds*1000;
+ const ready=elapsed>=waitMs;
+ const isLong=waitSeconds>=300;
+
+ const playChime=()=>{
+   try{const Ctx=window.AudioContext||((window as any).webkitAudioContext);if(!Ctx)return;const ctx=new Ctx();const osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=880;gain.gain.value=.07;osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.28);}catch{}
+ };
+ const requestNotifications=async()=>{
+   if(typeof window!=="undefined"&&"Notification" in window){try{const permission=await Notification.requestPermission();setNotificationEnabled(permission==="granted");}catch{}}
+ };
+ const notifyMilestone=(seconds:number)=>{
+   if(seconds<=60||lastNotified.current===seconds)return;
+   lastNotified.current=seconds;
+   playChime();
+   if(notificationEnabled&&"Notification" in window)try{new Notification("FORGE • Patience milestone",{body:`You waited ${formatWait(seconds)}. Your reward is ready.`});}catch{}
+   setMilestone(seconds);
+ };
+
+ useEffect(()=>{if(!started||finished)return;const tick=()=>{if(startedAt.current!==null)setElapsed(Date.now()-startedAt.current);};tick();const t=window.setInterval(tick,250);return()=>window.clearInterval(t)},[started,finished,round]);
+ useEffect(()=>{if(ready&&isLong)notifyMilestone(waitSeconds)},[ready,isLong,waitSeconds]);
+ useEffect(()=>{
+   const onVisible=()=>{if(document.visibilityState==="visible"&&startedAt.current!==null){setElapsed(Date.now()-startedAt.current);}};
+   document.addEventListener("visibilitychange",onVisible);return()=>document.removeEventListener("visibilitychange",onVisible);
+ },[]);
+
+ const begin=()=>{setStarted(true);setFinished(false);setRound(0);setBanked(0);setEarly(0);setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();setPreviousBreak(Number(window.localStorage.getItem(LAST_KEY)||0));};
+ const bank=()=>{if(!ready)return;if(round>=WAIT_SECONDS.length-1){setBanked(v=>v+1);setFinished(true);startedAt.current=null;return;}setBanked(v=>v+1);setRound(v=>v+1);setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();};
+ const earlyChoice=()=>{if(ready)return;setEarly(v=>v+1);setRound(v=>Math.min(v+1,WAIT_SECONDS.length-1));setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();};
+ const closeTraining=()=>{startedAt.current=null;setFinished(true);setElapsed(0);setMilestone(null);};
+ const improvement=Math.floor(elapsed/1000)-previousBreak;
+ const nextWait=WAIT_SECONDS[Math.min(round+1,WAIT_SECONDS.length-1)];
+ const currentPrompt=useMemo(()=>reflectionPrompts[Math.floor(elapsed/15000)%reflectionPrompts.length],[elapsed]);
+
+ return <main className="game-shell">
+  <div className="game-topbar"><Link href="/" className="game-back">← FORGE</Link><div className="game-progress">{started&&!finished?`PATience · ${round+1}/${WAIT_SECONDS.length}`:"PATIENCE"}</div></div>
+  {!started&&<section className="game-intro"><div className="eyebrow">PATIENCE · DELAYED REWARD</div><h1>Make waiting your advantage.</h1><p>The reward ladder starts at 10 seconds and grows: 30s, 60s, 90s, 3m, 5m, 10m, 20m, 50m, then 1 hour. At the longer milestones, FORGE celebrates the achievement and encourages you to leave the screen.</p><div className="rule-pills"><span>10s → 1 hour</span><span>Long waits unlock milestones</span><span>Phone-away by design</span></div><button className="btn btn-primary" onClick={()=>{begin();requestNotifications();}}>Start Patience</button></section>}
+  {started&&!finished&&<section className="game-stage">
+    <div className="target-card"><span>REWARD BUILDING · ROUND {round+1}</span><strong>{ready?"FULL REWARD AVAILABLE":"WAIT"}</strong></div>
+    <div className="patience-meter"><div className="patience-fill" style={{width:`${Math.min(100,(elapsed/waitMs)*100)}%`}}/></div>
+    <div className="patience-value">{ready?"REWARD READY":"NEXT REWARD IN "+formatWait(Math.max(0,Math.ceil((waitMs-elapsed)/1000)))}</div>
+    <button className={`btn ${ready?"btn-primary":"btn-secondary"} patience-action`} onClick={ready?bank:earlyChoice}>{ready?`Bank reward · next ${formatWait(nextWait)}`:"Take the early option"}</button>
+    <div className="live-stats"><span>WAIT <b>{formatWait(waitSeconds)}</b></span><span>BANKED <b>{banked}</b></span><span>EARLY <b>{early}</b></span></div>
+    <p className="game-hint">{ready?"You waited. Choose deliberately.":isLong?"You do not need to watch this screen. Put the phone down and return when the reward is ready.":"Notice the urge to reach for the quick reward. Waiting is the challenge."}</p>
+    {isLong&&<button className="btn btn-secondary" onClick={closeTraining}>Leave phone & finish training</button>}
+  </section>}
+  {milestone!==null&&!finished&&<div className="achievement-overlay" role="dialog" aria-modal="true"><div className="achievement-card"><div className="achievement-icon">✦</div><div className="eyebrow">PATIENCE ACHIEVEMENT</div><h2>{formatWait(milestone)} COMPLETE</h2><p>You just practiced staying away from the screen for {formatWait(milestone)}. Screen-heavy habits can make stepping away difficult; this challenge is about practicing the choice to disengage.</p><div className="achievement-badge">MILESTONE · {formatWait(milestone)}</div><p className="benchmark-note">Global percentiles will appear once FORGE has enough anonymized player results to calculate a real benchmark. We will never invent a “top %” result.</p><div className="cta-row"><button className="btn btn-primary" onClick={()=>setMilestone(null)}>Continue challenge</button><button className="btn btn-secondary" onClick={()=>{setMilestone(null);closeTraining();}}>Close FORGE</button></div></div></div>}
+  {finished&&<section className="result-card patience-result"><div className="eyebrow">PATIENCE COMPLETE</div><div className="result-score">{banked}</div><div className="result-label">REWARDS BANKED</div><div className="result-stats"><div><strong>{banked}</strong><span>completed waits</span></div><div><strong>{formatWait(WAIT_SECONDS[Math.min(Math.max(banked-1,0),WAIT_SECONDS.length-1)])}</strong><span>highest wait reached</span></div><div><strong>{previousBreak?`${improvement>=0?"+":""}${improvement}s`:"NEW"}</strong><span>vs last phone break</span></div></div><div className="comparison-card"><strong>{previousBreak?"You are competing with your previous self.":"You just created your baseline."}</strong><p>{previousBreak?`Previous phone-away result: ${previousBreak}s. Keep building the ability to leave the screen.`:"Next time, see whether you can create a longer intentional break."}</p></div><p>The objective is not to spend more time inside FORGE. The objective is to become more capable of choosing when to put the phone down.</p><div className="cta-row"><button className="btn btn-primary" onClick={begin}>Run Patience again</button><Link href="/" className="btn btn-secondary">I'm done</Link></div></section>}
  </main>;
 }
