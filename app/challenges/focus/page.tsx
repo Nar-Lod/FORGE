@@ -67,7 +67,7 @@ export default function FocusChallenge() {
   const timerRef = useRef<number | null>(null);
 
   const levelConfig = FORGE_CONFIG.focus.levels[level - 1];
-  const visibleMs = levelConfig.reactionMs * 2;
+  const visibleMs = levelConfig.reactionMs;
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -333,7 +333,7 @@ export default function FocusChallenge() {
     const performance = hits / Math.max(1, hits + mistakes);
     const sorted = [...reactionSamples].sort((a, b) => a - b);
     const medianReaction = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 3000;
-    const reactionControl = Math.max(0, Math.min(1, 1 - medianReaction / 3000));
+    const reactionControl = Math.max(0, Math.min(1, 1 - medianReaction / FORGE_CONFIG.focus.resultSpeedReferenceMs));
     const missRate = mistakes / Math.max(1, hits + mistakes);
     const currentDifficulty = challenge?.structuralScore ?? level / Math.max(1, FORGE_CONFIG.focus.maxLevel);
 
@@ -486,7 +486,7 @@ export default function FocusChallenge() {
           <p className="game-hint">
             {phase === "wait"
               ? "WAIT is intentional: the target is gone. Resist the urge to tap."
-              : `Level ${level}: accuracy first. Complexity rises before reaction speed does.`}
+              : `Level ${level}: scan deliberately. Complexity rises before reaction speed does.`}
           </p>
         </section>
       )}
