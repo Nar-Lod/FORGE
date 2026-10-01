@@ -212,7 +212,7 @@ export default function FocusChallenge() {
         timerRef.current = null;
       }, FORGE_CONFIG.focus.waitDurationMs);
     }, visibleMs);
-  }, [advanceDifficulty, clearTimer, levelConfig.familyComplexity, round, visibleMs]);
+  }, [advanceDifficulty, clearTimer, levelConfig.familyComplexity, round, sessionId, visibleMs]);
 
   const start = () => {
     clearTimer();
