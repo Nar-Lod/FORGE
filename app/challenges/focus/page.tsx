@@ -207,11 +207,11 @@ export default function FocusChallenge() {
     streak,
   ]);
 
-  const createRound = useCallback(() => {
+  const createRound = useCallback((forcedLevel?: number) => {
     clearTimer();
 
     const nextMode = pick(FOCUS_MODES);
-    const nextLevel = level;
+    const nextLevel = forcedLevel ?? level;
     const nextDifficulty = focusDifficultyForLevel(nextLevel);
     const nextChallenge = generateFocusChallenge({
       mode: nextMode,
