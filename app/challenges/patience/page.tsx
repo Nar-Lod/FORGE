@@ -12,6 +12,19 @@ import { difficultySnapshot, getAdaptiveProfile } from "../../../lib/forge-adapt
 const WAIT_SECONDS = [10, 30, 60, 90, 180, 300, 600, 1200, 3000, 3600];
 const LAST_KEY = "forge.patience.lastScore";
 
+const waitMessages: Record<number, { label: string; text: string }> = {
+  10: { label: "ARRIVE", text: "Ten seconds. Do nothing on purpose. Notice the first urge to reach for the screen." },
+  30: { label: "SETTLE", text: "Thirty seconds. Let the urge rise and fall without needing to answer it." },
+  60: { label: "ONE MINUTE", text: "One minute. Your attention does not need to be occupied every second." },
+  90: { label: "HOLD", text: "Ninety seconds. Let the silence stay empty. You do not have to fill it." },
+  180: { label: "THREE MINUTES", text: "Three minutes. Unclench your jaw, lower your shoulders, and let the phone become irrelevant." },
+  300: { label: "FIVE MINUTES", text: "Five minutes. This is a real phone break. Put the device down and let your mind wander." },
+  600: { label: "TEN MINUTES", text: "Ten minutes. Look away from the screen. Notice your surroundings instead of the countdown." },
+  1200: { label: "TWENTY MINUTES", text: "Twenty minutes. You are practicing distance from the device, not endurance in front of it." },
+  3000: { label: "FIFTY MINUTES", text: "Fifty minutes. Leave the phone alone. Use this time for something that exists outside the screen." },
+  3600: { label: "ONE HOUR", text: "One hour. The challenge is complete when you can choose to live the hour, not watch it pass." },
+};
+
 const reflectionPrompts = [
   { label: "BREATHE", text: "Take a slow breath in… and a slow breath out. Let your shoulders drop." },
   { label: "TODAY", text: "What is one good thing you want to do today? Picture yourself actually doing it." },
@@ -98,7 +111,7 @@ export default function PatienceChallenge(){
  };
  const improvement=Math.floor(elapsed/1000)-previousBreak;
  const nextWait=WAIT_SECONDS[Math.min(round+1,WAIT_SECONDS.length-1)];
- const currentPrompt=useMemo(()=>reflectionPrompts[Math.floor(elapsed/15000)%reflectionPrompts.length],[elapsed]);
+ const milestonePrompt=waitMessages[waitSeconds] ?? waitMessages[3600];\n const rotatingPrompt=useMemo(()=>reflectionPrompts[Math.floor(elapsed/15000)%reflectionPrompts.length],[elapsed]);\n const currentPrompt=useMemo(()=>{\n   if(elapsed<waitSeconds*1000*0.25) return milestonePrompt;\n   return {label:rotatingPrompt.label,text:rotatingPrompt.text};\n },[elapsed,waitSeconds,milestonePrompt,rotatingPrompt]);
 
  return <main className="game-shell">
   <style>{` .reflection-card{width:min(680px,100%);margin:24px auto 18px;padding:22px 24px;border:1px solid #384a25;border-radius:22px;background:radial-gradient(circle at 10% 0%,#c8ff3810,transparent 38%),linear-gradient(145deg,#121a0d,#0b1011);box-shadow:0 18px 55px #0008,inset 0 1px #ffffff0b;text-align:left;transition:box-shadow .3s,border-color .3s}.reflection-card:hover{border-color:#607d35;box-shadow:0 20px 65px #0009,0 0 35px #c8ff3810}.reflection-kicker{display:flex;align-items:center;gap:8px;color:#8ea965;font:700 9px 'Space Grotesk';letter-spacing:.18em}.reflection-pulse{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 14px #c8ff38;animation:forgePulse 1.8s ease-in-out infinite}.reflection-label{margin-top:13px;color:var(--accent);font:700 12px 'Space Grotesk';letter-spacing:.16em}.reflection-card p{margin:7px 0 14px;color:#e6ebdf;font:600 clamp(17px,2.5vw,22px)/1.35 'Space Grotesk';letter-spacing:-.02em}.reflection-dots{display:flex;gap:5px}.reflection-dots span{width:5px;height:5px;border-radius:50%;background:#33402b}.reflection-dots span.active{width:18px;border-radius:5px;background:var(--accent);box-shadow:0 0 10px #c8ff3866}@keyframes forgePulse{50%{opacity:.35;transform:scale(.75)}}@media(max-width:600px){.reflection-card{padding:18px;margin-top:18px}.reflection-card p{font-size:17px}.reflection-label{font-size:10px}}`}</style>
@@ -108,10 +121,10 @@ export default function PatienceChallenge(){
     <div className="target-card"><span>REWARD BUILDING · ROUND {round+1}</span><strong>{ready?"FULL REWARD AVAILABLE":"WAIT"}</strong></div>
     <div className="patience-meter"><div className="patience-fill" style={{width:`${Math.min(100,(elapsed/waitMs)*100)}%`}}/></div>
     <div className="patience-value">{ready?"REWARD READY":"NEXT REWARD IN "+formatWait(Math.max(0,Math.ceil((waitMs-elapsed)/1000)))}</div>
-    <div className="reflection-card" aria-live="polite"><div className="reflection-kicker"><span className="reflection-pulse" /> USE THE WAIT</div><div className="reflection-label">{currentPrompt.label}</div><p>{currentPrompt.text}</p><div className="reflection-dots">{reflectionPrompts.map((_,i)=><span key={i} className={i===Math.floor(elapsed/15000)%reflectionPrompts.length?"active":""} />)}</div></div>
+    <div className="reflection-card" aria-live="polite"><div className="reflection-kicker"><span className="reflection-pulse" /> USE THE WAIT · {formatWait(waitSeconds)}</div><div className="reflection-label">{currentPrompt.label}</div><p>{currentPrompt.text}</p><div className="reflection-dots">{reflectionPrompts.map((_,i)=><span key={i} className={i===Math.floor(elapsed/15000)%reflectionPrompts.length?"active":""} />)}</div></div>
     <button className={`btn ${ready?"btn-primary":"btn-secondary"} patience-action`} onClick={ready?bank:earlyChoice}>{ready?`Bank reward · next ${formatWait(nextWait)}`:"Take the early option"}</button>
     <div className="live-stats"><span>WAIT <b>{formatWait(waitSeconds)}</b></span><span>BANKED <b>{banked}</b></span><span>EARLY <b>{early}</b></span></div>
-    <p className="game-hint">{ready?"You waited. Choose deliberately.":isLong?"You do not need to watch this screen. Put the phone down and return when the reward is ready.":"Notice the urge to reach for the quick reward. Waiting is the challenge."}</p>
+    <p className="game-hint">{ready?`You completed ${formatWait(waitSeconds)}. Bank it deliberately.`:isLong?`This ${formatWait(waitSeconds)} stage is designed to be left unattended. Put the phone down and return when the reward is ready.`:`This ${formatWait(waitSeconds)} stage has its own reflection. Notice the urge, then let it pass.`}</p>
     {isLong&&<button className="btn btn-secondary" onClick={closeTraining}>Leave phone & finish training</button>}
   </section>}
   {milestone!==null&&!finished&&<div className="achievement-overlay" role="dialog" aria-modal="true"><div className="achievement-card"><div className="achievement-icon">✦</div><div className="eyebrow">PATIENCE ACHIEVEMENT</div><h2>{formatWait(milestone)} COMPLETE</h2><p>You just practiced staying away from the screen for {formatWait(milestone)}. Screen-heavy habits can make stepping away difficult; this challenge is about practicing the choice to disengage.</p><div className="achievement-badge">MILESTONE · {formatWait(milestone)}</div><p className="benchmark-note">Global percentiles will appear once FORGE has enough anonymized player results to calculate a real benchmark. We will never invent a “top %” result.</p><div className="cta-row"><button className="btn btn-primary" onClick={()=>setMilestone(null)}>Continue challenge</button><button className="btn btn-secondary" onClick={()=>{setMilestone(null);closeTraining();}}>Close FORGE</button></div></div></div>}
