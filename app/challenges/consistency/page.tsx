@@ -185,7 +185,21 @@ export default function ConsistencyChallenge() {
     setScores(nextScores);
 
     if (sessionId) {
-      updateSkillModel("consistency", performance, adaptiveResult.decision.level, true);
+      updateSkillModel(
+        "consistency",
+        performance,
+        adaptiveResult.decision.level,
+        true,
+        {
+          accuracy: score / 100,
+          memoryLoad: Math.min(1, count / 8),
+          recovery: attempt === 1 ? 1 : Math.max(0, 1 - (attempt - 1) * 0.15),
+          consistency: nextScores.length > 1
+            ? Math.min(...nextScores) / 100
+            : score / 100,
+          difficulty: (count / 8) * 0.75 + (levelReveals === 0 ? 0.25 : 0),
+        },
+      );
       recordEvent({
         sessionId,
         skill: "consistency",
