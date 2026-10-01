@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { REVEAL_COST, getCredits, spendCredits } from "../../../lib/forge-credits";
 
 type Item = { id: string; shape: string; color: string };
 
@@ -101,6 +102,10 @@ export default function PersistenceChallenge() {
   const [levelsCleared, setLevelsCleared] = useState(0);
   const [firstTryClears, setFirstTryClears] = useState(0);
   const [lastLevelPoints, setLastLevelPoints] = useState(0);
+  const [credits, setCredits] = useState(0);
+  const [revealing, setRevealing] = useState(false);
+  const [levelReveals, setLevelReveals] = useState(0);
+  const [totalReveals, setTotalReveals] = useState(0);
 
   const length = LEVELS[level];
   const config = LEVEL_CONFIG[level];
@@ -108,6 +113,7 @@ export default function PersistenceChallenge() {
 
   useEffect(() => {
     setBest(Number(window.localStorage.getItem("forge.persistence.best") || 0));
+    setCredits(getCredits());
   }, []);
 
   const startLevel = (levelIndex: number) => {
@@ -121,6 +127,8 @@ export default function PersistenceChallenge() {
     setReplacementIndex(null);
     setLevelAttempts(0);
     setLevelMisses(0);
+    setLevelReveals(0);
+    setRevealing(false);
     setShowing(true);
   };
 
@@ -132,6 +140,7 @@ export default function PersistenceChallenge() {
     setLevelsCleared(0);
     setFirstTryClears(0);
     setLastLevelPoints(0);
+    setTotalReveals(0);
     startLevel(0);
   };
 
@@ -142,7 +151,7 @@ export default function PersistenceChallenge() {
     return () => window.clearTimeout(timer);
   }, [started, showing, manual, length, config.buffer, config.exposurePerItem]);
 
-  const arrange = () => {
+  const reveal = () => {\n    if (showing || finished || revealing || credits < REVEAL_COST) return;\n    if (!spendCredits(REVEAL_COST)) return;\n    setCredits(getCredits());\n    setLevelReveals((current) => current + 1);\n    setTotalReveals((current) => current + 1);\n    setRevealing(true);\n    window.setTimeout(() => setRevealing(false), 2500);\n  };\n\n  const arrange = () => {
     setShowing(false);
     setAnswer([]);
     setSubmitted(false);
@@ -203,8 +212,8 @@ export default function PersistenceChallenge() {
     // Harder levels are worth more. A clean first attempt earns a meaningful bonus;
     // recovery still earns progress without rewarding repeated guessing.
     const basePoints = 70 + length * 22;
-    const firstTryBonus = attemptNumber === 1 ? 45 : 0;
-    const cleanBonus = levelMisses === 0 && attemptNumber === 1 ? 20 : 0;
+    const firstTryBonus = attemptNumber === 1 && levelReveals === 0 ? 45 : 0;
+    const cleanBonus = levelMisses === 0 && attemptNumber === 1 && levelReveals === 0 ? 20 : 0;
     const levelPoints = basePoints + firstTryBonus + cleanBonus;
     const nextScore = score + levelPoints;
 
@@ -302,7 +311,7 @@ export default function PersistenceChallenge() {
                 </div>
               </div>
               {manual && <button className="btn btn-primary" onClick={arrange}>I&apos;ve got it — Arrange</button>}
-              {!manual && <p className="game-hint">Watch the sequence. It disappears automatically when your study window ends.</p>}
+              {!manual && (\n                <div className="auto-disappear-notice" role="status">\n                  <span>⚡ AUTO-DISAPPEAR</span>\n                  <strong>WATCH THE SEQUENCE — IT DISAPPEARS AUTOMATICALLY.</strong>\n                  <small>Use the study window. When it ends, you rebuild from memory.</small>\n                </div>\n              )}
             </>
           )}
 
@@ -353,6 +362,28 @@ export default function PersistenceChallenge() {
                 <p className="game-hint replacement-hint">Position {replacementIndex + 1} is selected. Choose its replacement above.</p>
               )}
 
+              <div className="reveal-bar">
+                <button type="button" className="reveal-button" disabled={credits < REVEAL_COST || revealing || (submitted && lastResult === "correct")} onClick={reveal}>
+                  <span>REVEAL</span>
+                  <b>−{REVEAL_COST} CREDIT</b>
+                </button>
+                <span className="credit-balance">CREDITS <b>{credits}</b></span>
+                {levelReveals > 0 && <span className="assisted-label">ASSISTED · {levelReveals}</span>}
+              </div>
+
+              {revealing && (
+                <div className="reveal-panel">
+                  <span>MEMORY ASSIST · {length} ITEMS</span>
+                  <div className="reveal-sequence">
+                    {sequence.map((item, index) => (
+                      <div key={item.id} className={`reveal-item ${item.color}`}>
+                        <b>{item.shape}</b><small>{index + 1}</small>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <button
                 className="btn btn-primary persistence-submit"
                 disabled={answer.length !== length || replacementIndex !== null || (submitted && lastResult === "correct")}
@@ -383,7 +414,7 @@ export default function PersistenceChallenge() {
             <span>ITEMS <b>{length}</b></span>
             <span>SCORE <b>{score}</b></span>
             <span>MISSES <b>{wrong}</b></span>
-            <span>LAST <b>+{lastLevelPoints}</b></span>
+            <span>LAST <b>+{lastLevelPoints}</b></span><span>CREDITS <b>{credits}</b></span>
           </div>
 
           <p className="game-hint persistence-footer-hint">
