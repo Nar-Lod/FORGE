@@ -1,5 +1,6 @@
 import {
   getPlayerModel,
+  getCrossSkillInfluence,
   type ForgeDifficulty,
   type ForgeSkill,
 } from "./forge-analytics";
@@ -125,7 +126,20 @@ export function chooseInitialDifficulty(
 
   if (state.attempts === 0) return config.startingLevel;
 
-  const rating = state.rating;
+  const directEvidence = state.rating * 0.75;
+  const transferEvidence =
+    Object.keys(model.skills)
+      .filter((source) => source !== skill)
+      .reduce(
+        (sum, source) =>
+          sum +
+          model.skills[source as ForgeSkill].rating *
+            getCrossSkillInfluence(source as ForgeSkill, skill) *
+            0.05,
+        0,
+      );
+
+  const rating = Math.max(0, Math.min(1, directEvidence + transferEvidence));
   const confidence = state.confidence;
 
   if (confidence < 0.35) return config.startingLevel;
@@ -133,6 +147,37 @@ export function chooseInitialDifficulty(
   const span = config.maxLevel - config.minLevel;
   const estimated = config.minLevel + Math.round(rating * span * 0.7);
   return clampDifficulty(estimated, config);
+}
+
+export function selectChallengeQuality(
+  skill: ForgeSkill,
+  performance: number,
+  difficulty: number,
+  config: AdaptiveConfig,
+) {
+  const model = getPlayerModel();
+  const state = model.skills[skill];
+  const normalized = Math.max(0, Math.min(1, performance));
+  const difficultyRatio =
+    (difficulty - config.minLevel) /
+    Math.max(1, config.maxLevel - config.minLevel);
+
+  const target = 0.72;
+  const performanceGap = Math.abs(normalized - target);
+  const difficultyGap = Math.abs(difficultyRatio - state.rating);
+
+  if (performanceGap > 0.28 || difficultyGap > 0.45) {
+    return {
+      quality: Math.max(0, 1 - performanceGap),
+      recommendation:
+        normalized < 0.55 ? "reduce" : normalized > 0.9 ? "increase" : "hold",
+    } as const;
+  }
+
+  return {
+    quality: Math.max(0, 1 - performanceGap * 1.5),
+    recommendation: "hold",
+  } as const;
 }
 
 export function updateAdaptiveState(
