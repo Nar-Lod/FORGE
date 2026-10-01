@@ -346,7 +346,19 @@ export default function PersistenceChallenge() {
     setAdaptive(adaptiveResult.state);
 
     if (sessionId) {
-      updateSkillModel("persistence", performance, adaptiveResult.decision.level, true);
+      updateSkillModel(
+        "persistence",
+        performance,
+        adaptiveResult.decision.level,
+        true,
+        {
+          accuracy: correctCount / Math.max(1, length),
+          memoryLoad: Math.min(1, length / 12),
+          recovery: attemptNumber === 1 ? 1 : Math.max(0, 1 - (attemptNumber - 1) * 0.15),
+          consistency: levelReveals === 0 ? 1 : 0.5,
+          difficulty: sequenceDifficulty,
+        },
+      );
       recordEvent({
         sessionId,
         skill: "persistence",
