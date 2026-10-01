@@ -25,7 +25,7 @@ function pick<T>(items: T[]) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
-function visualStyle(index: number, target: boolean, challenge: FocusChallenge) {
+function visualStyle(index: number, challenge: FocusChallenge) {
   const cell = challenge.cells[index];
   const hue = (index * 31 + cell.variant.hueShift + 360) % 360;
 
@@ -461,7 +461,7 @@ export default function FocusChallenge() {
                   className="focus-cell"
                   onClick={() => choose(index)}
                   disabled={phase !== "visible"}
-                  style={item && challenge ? visualStyle(index, index === targetCell, challenge) : undefined}
+                  style={item && challenge ? visualStyle(index, challenge) : undefined}
                   aria-label={
                     showField && index === targetCell
                       ? target.label
