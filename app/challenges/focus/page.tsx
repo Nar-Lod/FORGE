@@ -182,6 +182,20 @@ export default function FocusChallenge() {
     setShownAt(performance.now());
 
     timerRef.current = window.setTimeout(() => {
+      // Expiration is a measured miss, not an unrecorded timeout.
+      if (sessionId) {
+        recordEvent({
+          sessionId, skill: "focus", game: "focus",
+          event: "trial_completed",
+          difficulty: difficultySnapshot(level),
+          payload: { correct: false, reactionMs: null, expired: true },
+        });
+        recordEvent({
+          sessionId, skill: "focus", game: "focus",
+          event: "mistake", difficulty: difficultySnapshot(level),
+          payload: { reason: "timeout" },
+        });
+      }
       advanceDifficulty(false);
       setPhase("wait");
       setMistakes((value) => value + 1);
@@ -370,7 +384,7 @@ export default function FocusChallenge() {
               // visual clutter within each tile, never whether a tile is empty.
               const item = index === targetCell
                 ? target
-                : palette[(index * 7 + round * 3 + level) % Math.max(1, palette.length)];
+                : palette[1 + ((index * 7 + round * 3 + level) % Math.max(1, palette.length - 1))];
               const occupied = showField;
 
               return (
