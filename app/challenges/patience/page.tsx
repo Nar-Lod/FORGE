@@ -62,10 +62,38 @@ export default function PatienceChallenge(){
  useEffect(()=>{if(ready&&isLong)notifyMilestone(waitSeconds)},[ready,isLong,waitSeconds]);
  useEffect(()=>{const onVisible=()=>{if(document.visibilityState==="visible"&&startedAt.current!==null)setElapsed(Date.now()-startedAt.current);};document.addEventListener("visibilitychange",onVisible);return()=>document.removeEventListener("visibilitychange",onVisible)},[]);
 
- const begin=()=>{setStarted(true);setFinished(false);setRound(0);setBanked(0);setEarly(0);setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();setPreviousBreak(Number(window.localStorage.getItem(LAST_KEY)||0));};
- const bank=()=>{if(!ready)return;if(round>=WAIT_SECONDS.length-1){setBanked(v=>v+1);setFinished(true);startedAt.current=null;return;}setBanked(v=>v+1);setRound(v=>v+1);setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();};
- const earlyChoice=()=>{if(ready)return;setEarly(v=>v+1);setRound(v=>Math.min(v+1,WAIT_SECONDS.length-1));setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();};
- const closeTraining=()=>{startedAt.current=null;setFinished(true);setElapsed(0);setMilestone(null);};
+ const begin=()=>{
+   setStarted(true);setFinished(false);setRound(0);setBanked(0);setEarly(0);setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();
+   setPreviousBreak(Number(window.localStorage.getItem(LAST_KEY)||0));
+   const nextSession=startForgeSession("patience","patience",{startingLevel:1});
+   setSessionId(nextSession);
+   recordEvent({sessionId:nextSession,skill:"patience",game:"patience",event:"rest_started",difficulty:difficultySnapshot(1)});
+ };
+ const bank=()=>{
+   if(!ready)return;
+   const completedSeconds=waitSeconds;
+   setBanked(v=>v+1);
+   if(round>=WAIT_SECONDS.length-1){
+     setFinished(true);startedAt.current=null;
+     const performance=Math.min(1,completedSeconds/WAIT_SECONDS[WAIT_SECONDS.length-1]);
+     updateSkillModel("patience",performance,round+1,true,{accuracy:1,consistency:performance,restQuality:1,difficulty:(round+1)/getAdaptiveProfile("patience").maxLevel});
+     recordEvent({sessionId,skill:"patience",game:"patience",event:"rest_completed",difficulty:difficultySnapshot(round+1),payload:{waitSeconds:completedSeconds,performance}});
+     recordEvent({sessionId,skill:"patience",game:"patience",event:"session_completed",difficulty:difficultySnapshot(round+1),payload:{waitSeconds:completedSeconds,banked:banked+1}});
+     return;
+   }
+   setRound(v=>v+1);setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();
+   recordEvent({sessionId,skill:"patience",game:"patience",event:"rest_completed",difficulty:difficultySnapshot(round+1),payload:{waitSeconds:completedSeconds}});
+ };
+ const earlyChoice=()=>{
+   if(ready)return;
+   setEarly(v=>v+1);
+   recordEvent({sessionId,skill:"patience",game:"patience",event:"recovery",difficulty:difficultySnapshot(round+1),payload:{waitSeconds,elapsed,stoppedEarly:true}});
+   setRound(v=>Math.min(v+1,WAIT_SECONDS.length-1));setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();
+ };
+ const closeTraining=()=>{
+   startedAt.current=null;setFinished(true);setElapsed(0);setMilestone(null);
+   recordEvent({sessionId,skill:"patience",game:"patience",event:"session_completed",difficulty:difficultySnapshot(round+1),payload:{banked,early,stoppedIntentionally:true}});
+ };
  const improvement=Math.floor(elapsed/1000)-previousBreak;
  const nextWait=WAIT_SECONDS[Math.min(round+1,WAIT_SECONDS.length-1)];
  const currentPrompt=useMemo(()=>reflectionPrompts[Math.floor(elapsed/15000)%reflectionPrompts.length],[elapsed]);
