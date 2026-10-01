@@ -7,6 +7,7 @@ import {
   recordEvent,
   startForgeSession,
   updateSkillModel,
+  applyCrossSkillTransfer,
 } from "../../../lib/forge-analytics";
 import {
   chooseInitialDifficulty,
@@ -346,6 +347,8 @@ export default function PersistenceChallenge() {
     setAdaptive(adaptiveResult.state);
 
     if (sessionId) {
+      applyCrossSkillTransfer("persistence", "consistency", performance * 0.2 - 0.1);
+
       updateSkillModel(
         "persistence",
         performance,
