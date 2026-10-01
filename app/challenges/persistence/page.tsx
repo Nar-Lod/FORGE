@@ -11,6 +11,7 @@ import {
 import {
   chooseInitialDifficulty,
   difficultySnapshot,
+  getAdaptiveProfile,
   updateAdaptiveState,
   type AdaptiveState,
 } from "../../../lib/forge-adaptive";
@@ -175,20 +176,7 @@ export default function PersistenceChallenge() {
     setLastLevelPoints(0);
     setTotalReveals(0);
 
-    const adaptiveConfig = {
-      minLevel: 1,
-      maxLevel: LEVELS.length,
-      startingLevel: 1,
-      bands: LEVELS.map((items, index) => ({
-        level: index + 1,
-        minPerformance: 0,
-        maxPerformance: 1,
-      })),
-      upThreshold: 0.9,
-      downThreshold: 0.55,
-      consecutiveUp: 1,
-      consecutiveDown: 2,
-    };
+    const adaptiveConfig = getAdaptiveProfile("persistence");
     const initialLevel = chooseInitialDifficulty("persistence", adaptiveConfig);
     setAdaptive({
       level: initialLevel,
