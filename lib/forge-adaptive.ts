@@ -35,6 +35,83 @@ export type AdaptiveState = {
   history: number[];
 };
 
+
+
+export const FORGE_ADAPTIVE_PROFILES: Record<ForgeSkill, AdaptiveConfig> = {
+  focus: {
+    minLevel: 1,
+    maxLevel: 5,
+    startingLevel: 1,
+    bands: [
+      { level: 1, minPerformance: 0, maxPerformance: 1 },
+      { level: 2, minPerformance: 0, maxPerformance: 1 },
+      { level: 3, minPerformance: 0, maxPerformance: 1 },
+      { level: 4, minPerformance: 0, maxPerformance: 1 },
+      { level: 5, minPerformance: 0, maxPerformance: 1 },
+    ],
+    upThreshold: 0.85,
+    downThreshold: 0.65,
+    consecutiveUp: 3,
+    consecutiveDown: 2,
+  },
+  control: {
+    minLevel: 1,
+    maxLevel: 4,
+    startingLevel: 1,
+    bands: [1, 2, 3, 4].map((level) => ({ level, minPerformance: 0, maxPerformance: 1 })),
+    upThreshold: 0.85,
+    downThreshold: 0.6,
+    consecutiveUp: 2,
+    consecutiveDown: 2,
+  },
+  patience: {
+    minLevel: 1,
+    maxLevel: 10,
+    startingLevel: 1,
+    bands: Array.from({ length: 10 }, (_, index) => ({
+      level: index + 1,
+      minPerformance: 0,
+      maxPerformance: 1,
+    })),
+    upThreshold: 0.8,
+    downThreshold: 0.5,
+    consecutiveUp: 1,
+    consecutiveDown: 2,
+  },
+  persistence: {
+    minLevel: 1,
+    maxLevel: 10,
+    startingLevel: 1,
+    bands: Array.from({ length: 10 }, (_, index) => ({
+      level: index + 1,
+      minPerformance: 0,
+      maxPerformance: 1,
+    })),
+    upThreshold: 0.9,
+    downThreshold: 0.55,
+    consecutiveUp: 1,
+    consecutiveDown: 2,
+  },
+  consistency: {
+    minLevel: 1,
+    maxLevel: 7,
+    startingLevel: 1,
+    bands: Array.from({ length: 7 }, (_, index) => ({
+      level: index + 1,
+      minPerformance: 0,
+      maxPerformance: 1,
+    })),
+    upThreshold: 0.9,
+    downThreshold: 0.55,
+    consecutiveUp: 1,
+    consecutiveDown: 2,
+  },
+};
+
+export function getAdaptiveProfile(skill: ForgeSkill): AdaptiveConfig {
+  return FORGE_ADAPTIVE_PROFILES[skill];
+}
+
 export function clampDifficulty(level: number, config: AdaptiveConfig) {
   return Math.max(config.minLevel, Math.min(config.maxLevel, level));
 }
