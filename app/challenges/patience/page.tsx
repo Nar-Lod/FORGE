@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import {
+  recordEvent,
+  startForgeSession,
+  updateSkillModel,
+} from "../../../lib/forge-analytics";
+import { difficultySnapshot, getAdaptiveProfile } from "../../../lib/forge-adaptive";
 
 const WAIT_SECONDS = [10, 30, 60, 90, 180, 300, 600, 1200, 3000, 3600];
 const LAST_KEY = "forge.patience.lastScore";
@@ -30,6 +36,8 @@ function formatWait(seconds:number){
 export default function PatienceChallenge(){
  const[started,setStarted]=useState(false),[finished,setFinished]=useState(false),[round,setRound]=useState(0),[elapsed,setElapsed]=useState(0),[banked,setBanked]=useState(0),[early,setEarly]=useState(0),[previousBreak,setPreviousBreak]=useState(0),[milestone,setMilestone]=useState<number|null>(null),[notificationEnabled,setNotificationEnabled]=useState(false);
  const startedAt=useRef<number|null>(null);
+ const [sessionId,setSessionId]=useState("");
+ const [restStartedAt,setRestStartedAt]=useState<number|null>(null);
  const lastNotified=useRef(0);
  const waitSeconds=WAIT_SECONDS[round] ?? WAIT_SECONDS[WAIT_SECONDS.length-1];
  const waitMs=waitSeconds*1000;
