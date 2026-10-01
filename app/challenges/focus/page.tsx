@@ -272,7 +272,21 @@ export default function FocusChallenge() {
     if (!finished || !sessionId) return;
 
     const performance = hits / Math.max(1, hits + mistakes);
-    updateSkillModel("focus", performance, level, performance >= FORGE_CONFIG.focus.goodAccuracy);
+    updateSkillModel(
+    "focus",
+    performance,
+    level,
+    performance >= FORGE_CONFIG.focus.goodAccuracy,
+    {
+      accuracy: performance,
+      reactionControl:
+        reactionTotal > 0
+          ? Math.max(0, Math.min(1, 1 - reactionTotal / Math.max(1, hits * 3000)))
+          : performance,
+      consistency: bestStreak / Math.max(1, ROUNDS),
+      difficulty: level / Math.max(1, FORGE_CONFIG.focus.maxLevel),
+    },
+  );
     recordEvent({
       sessionId,
       skill: "focus",
