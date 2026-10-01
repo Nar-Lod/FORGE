@@ -14,6 +14,7 @@ import {
   updateAdaptiveState,
   type AdaptiveState,
 } from "../../../lib/forge-adaptive";
+import { generateSequence, type SequenceSymbol } from "../../../lib/forge-sequences";
 
 type Item = { id: string; shape: string; color: string };
 
@@ -49,18 +50,30 @@ function shuffle<T>(items: T[]): T[] {
 
 // The identity of an item is always shape + colour.
 // Each level uses unique shapes and unique colours, eliminating visual ambiguity.
-function makeSequence(length: number): Item[] {
-  const shapes = shuffle(SHAPES).slice(0, length);
-  const colors = shuffle(COLORS).slice(0, length);
+const SEQUENCE_POOL: SequenceSymbol[] = SHAPES.flatMap((shape) =>
+  COLORS.map((color) => ({
+    id: `${shape}-${color}`,
+    family: shape,
+    value: color,
+  })),
+);
 
-  // Re-shuffle the paired identities so neither shape nor colour predicts position.
-  return shuffle(
-    shapes.map((shape, index) => ({
-      id: `${shape}-${colors[index]}`,
-      shape,
-      color: colors[index],
-    })),
-  );
+function makeSequence(length: number) {
+  const generated = generateSequence(SEQUENCE_POOL, {
+    length,
+    uniqueFamily: true,
+    uniqueValue: true,
+    noAdjacentFamily: true,
+    noAdjacentValue: true,
+  });
+
+  return {
+    items: generated.items.map((item) => {
+      const [shape, color] = item.id.split("-");
+      return { id: item.id, shape, color };
+    }),
+    difficulty: generated.difficulty,
+  };
 }
 
 const same = (a: Item, b: Item) => a.id === b.id;
@@ -117,6 +130,7 @@ export default function PersistenceChallenge() {
   const [revealing, setRevealing] = useState(false);
   const [levelReveals, setLevelReveals] = useState(0);
   const [totalReveals, setTotalReveals] = useState(0);
+  const [sequenceDifficulty, setSequenceDifficulty] = useState(0);
   const [sessionId, setSessionId] = useState("");
   const [adaptive, setAdaptive] = useState<AdaptiveState>({
     level: 1,
@@ -136,9 +150,10 @@ export default function PersistenceChallenge() {
 
   const startLevel = (levelIndex: number) => {
     const nextLength = LEVELS[levelIndex];
-    const seq = makeSequence(nextLength);
+    const generated = makeSequence(nextLength);
     setLevel(levelIndex);
-    setSequence(seq);
+    setSequence(generated.items);
+    setSequenceDifficulty(generated.difficulty);
     setAnswer([]);
     setSubmitted(false);
     setLastResult(null);
@@ -274,6 +289,7 @@ export default function PersistenceChallenge() {
           reveals: levelReveals,
           sequenceLength: length,
           correctPositions: correctCount,
+          sequenceDifficulty,
         },
       });
     }
