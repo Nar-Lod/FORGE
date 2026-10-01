@@ -3,6 +3,17 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { REVEAL_COST, getCredits, spendCredits } from "../../../lib/forge-credits";
+import {
+  recordEvent,
+  startForgeSession,
+  updateSkillModel,
+} from "../../../lib/forge-analytics";
+import {
+  chooseInitialDifficulty,
+  difficultySnapshot,
+  updateAdaptiveState,
+  type AdaptiveState,
+} from "../../../lib/forge-adaptive";
 
 const ITEMS = ["●", "■", "▲", "◆", "★", "✚", "✦", "⬟", "⬢", "✿", "☀", "❖"];
 const LEVELS = [2, 3, 4, 5, 6, 7, 8];
@@ -32,6 +43,13 @@ export default function ConsistencyChallenge() {
   const [levelAttempts, setLevelAttempts] = useState(0);
   const [levelReveals, setLevelReveals] = useState(0);
   const [recoveryLevels, setRecoveryLevels] = useState(0);
+  const [sessionId, setSessionId] = useState("");
+  const [adaptive, setAdaptive] = useState<AdaptiveState>({
+    level: 1,
+    upStreak: 0,
+    downStreak: 0,
+    history: [],
+  });
 
   const count = LEVELS[level];
   const selected = phase === "first" ? firstPick : secondPick;
@@ -53,7 +71,33 @@ export default function ConsistencyChallenge() {
     setScores([]);
     setRecoveryLevels(0);
     setCredits(getCredits());
-    beginLevel(0);
+
+    const adaptiveConfig = {
+      minLevel: 1,
+      maxLevel: LEVELS.length,
+      startingLevel: 1,
+      bands: LEVELS.map((items, index) => ({
+        level: index + 1,
+        minPerformance: 0,
+        maxPerformance: 1,
+      })),
+      upThreshold: 0.9,
+      downThreshold: 0.55,
+      consecutiveUp: 1,
+      consecutiveDown: 2,
+    };
+    const initialLevel = chooseInitialDifficulty("consistency", adaptiveConfig);
+    setAdaptive({
+      level: initialLevel,
+      upStreak: 0,
+      downStreak: 0,
+      history: [],
+    });
+    const nextSession = startForgeSession("consistency", "consistency", {
+      startingLevel: initialLevel,
+    });
+    setSessionId(nextSession);
+    beginLevel(initialLevel - 1);
   };
 
   const choose = (image: string) => {
@@ -73,6 +117,16 @@ export default function ConsistencyChallenge() {
     if (!spendCredits(REVEAL_COST)) return;
     setCredits(getCredits());
     setLevelReveals((v) => v + 1);
+    if (sessionId) {
+      recordEvent({
+        sessionId,
+        skill: "consistency",
+        game: "consistency",
+        event: "reveal_used",
+        difficulty: difficultySnapshot(level + 1),
+        payload: { credits: REVEAL_COST },
+      });
+    }
     setRevealing(true);
     window.setTimeout(() => setRevealing(false), 2500);
   };
@@ -83,16 +137,98 @@ export default function ConsistencyChallenge() {
     const attempt = levelAttempts + 1;
     setLevelAttempts(attempt);
 
+    if (sessionId) {
+      recordEvent({
+        sessionId,
+        skill: "consistency",
+        game: "consistency",
+        event: "trial_completed",
+        difficulty: difficultySnapshot(level + 1),
+        payload: {
+          score,
+          attempt,
+          reveals: levelReveals,
+          sequenceLength: count,
+        },
+      });
+    }
+
     if (score < 100) {
       setRecoveryLevels((v) => v + 1);
+      if (sessionId) {
+        recordEvent({
+          sessionId,
+          skill: "consistency",
+          game: "consistency",
+          event: "recovery",
+          difficulty: difficultySnapshot(level + 1),
+          payload: { score, attempt },
+        });
+      }
       setSecondPick([]);
       return;
     }
 
+    const performance =
+      (attempt === 1 ? 1 : 0.72) *
+      (levelReveals > 0 ? 0.55 : 1);
+
+    const adaptiveResult = updateAdaptiveState(
+      adaptive,
+      performance,
+      {
+        minLevel: 1,
+        maxLevel: LEVELS.length,
+        startingLevel: 1,
+        bands: LEVELS.map((items, index) => ({
+          level: index + 1,
+          minPerformance: 0,
+          maxPerformance: 1,
+        })),
+        upThreshold: 0.9,
+        downThreshold: 0.55,
+        consecutiveUp: 1,
+        consecutiveDown: 2,
+      },
+    );
+    setAdaptive(adaptiveResult.state);
+
     const nextScores = [...scores, score];
     setScores(nextScores);
-    if (level === LEVELS.length - 1) setFinished(true);
-    else beginLevel(level + 1);
+
+    if (sessionId) {
+      updateSkillModel("consistency", performance, adaptiveResult.decision.level, true);
+      recordEvent({
+        sessionId,
+        skill: "consistency",
+        game: "consistency",
+        event: "difficulty_changed",
+        difficulty: difficultySnapshot(adaptiveResult.decision.level),
+        payload: {
+          direction: adaptiveResult.decision.direction,
+          performance,
+        },
+      });
+    }
+
+    if (adaptiveResult.decision.level === LEVELS.length) {
+      setFinished(true);
+      if (sessionId) {
+        recordEvent({
+          sessionId,
+          skill: "consistency",
+          game: "consistency",
+          event: "session_completed",
+          difficulty: difficultySnapshot(LEVELS.length),
+          payload: {
+            mastery: Math.round((nextScores.reduce((sum, value) => sum + value, 0) / nextScores.length)),
+            reveals: levelReveals,
+          },
+        });
+      }
+    } else {
+      beginLevel(adaptiveResult.decision.level - 1);
+    }
   };
 
   const mastery = useMemo(() => {
