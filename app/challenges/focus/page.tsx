@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { FOCUS_LIBRARIES, FOCUS_MODES, type FocusItem } from "../../../lib/focus-library";
+import { generateFocusChallenge, focusDifficultyForLevel, type FocusChallenge } from "../../../lib/focus-generator";
 import { FORGE_CONFIG } from "../../../lib/forge-config";
 import {
   recordEvent,
@@ -24,28 +25,16 @@ function pick<T>(items: T[]) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
-function shuffle<T>(items: T[]) {
-  return [...items].sort(() => Math.random() - 0.5);
-}
-
-function makePalette(mode: string, target: FocusItem, complexity: number) {
-  const pool = FOCUS_LIBRARIES[mode].filter((item) => item.id !== target.id);
-  const size = Math.min(10 + complexity, pool.length + 1);
-  const distractors = shuffle(pool).slice(0, Math.max(0, size - 1));
-  return [target, ...distractors];
-}
-
-function visualStyle(index: number, item: FocusItem, target: boolean) {
-  const hues = [18, 42, 76, 118, 158, 198, 238, 278, 318, 346];
-  const hue = hues[index % hues.length];
-  const rotation = ((index * 37) % 28) - 14;
-  const scale = 0.78 + ((index * 17) % 35) / 100;
+function visualStyle(index: number, item: FocusItem, target: boolean, challenge: FocusChallenge) {
+  const cell = challenge.cells[index];
+  const hue = (index * 31 + cell.variant.hueShift + 360) % 360;
 
   return {
     "--focus-hue": hue,
-    "--focus-rotation": `${target ? 0 : rotation}deg`,
-    "--focus-scale": target ? 1 : scale,
-    "--focus-delay": `${(index % 5) * 20}ms`,
+    "--focus-rotation": `${target ? 0 : cell.variant.rotation}deg`,
+    "--focus-scale": target ? 1 : cell.variant.scale,
+    "--focus-opacity": target ? 1 : cell.variant.opacity,
+    "--focus-similarity": cell.similarity,
     "--focus-surface": `hsl(${hue} 70% 94%)`,
     "--focus-ink": `hsl(${hue} 72% 35%)`,
   } as React.CSSProperties;
@@ -54,8 +43,6 @@ function visualStyle(index: number, item: FocusItem, target: boolean) {
 export default function FocusChallenge() {
   const [round, setRound] = useState(0);
   const [level, setLevel] = useState(FORGE_CONFIG.focus.startingLevel);
-  const [goodRounds, setGoodRounds] = useState(0);
-  const [poorRounds, setPoorRounds] = useState(0);
   const [mode, setMode] = useState("shapes");
   const [target, setTarget] = useState<FocusItem>(FOCUS_LIBRARIES.shapes[0]);
   const [targetCell, setTargetCell] = useState(-1);
@@ -67,8 +54,9 @@ export default function FocusChallenge() {
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
   const [reactionTotal, setReactionTotal] = useState(0);
+  const [reactionSamples, setReactionSamples] = useState<number[]>([]);
   const [shownAt, setShownAt] = useState(0);
-  const [palette, setPalette] = useState<FocusItem[]>([]);
+  const [challenge, setChallenge] = useState<FocusChallenge | null>(null);
   const [sessionId, setSessionId] = useState("");
   const [adaptive, setAdaptive] = useState<AdaptiveState>({
     level: FORGE_CONFIG.focus.startingLevel,
@@ -88,6 +76,19 @@ export default function FocusChallenge() {
     }
   }, []);
 
+  const recordRecovery = useCallback((nextRound: number) => {
+    if (!sessionId) return;
+    recordEvent({
+      sessionId,
+      skill: "focus",
+      game: "focus",
+      event: "recovery",
+      difficulty: difficultySnapshot(level),
+      performance: { recovery: 1 },
+      payload: { afterMiss: true, nextRound },
+    });
+  }, [level, sessionId]);
+
   const advanceDifficulty = useCallback((wasCorrect: boolean) => {
     const result = updateAdaptiveState(
       adaptive,
@@ -98,45 +99,72 @@ export default function FocusChallenge() {
     setAdaptive(result.state);
     setLevel(result.decision.level);
 
-    if (sessionId) {
+    if (sessionId && result.decision.direction !== "hold") {
       recordEvent({
         sessionId,
         skill: "focus",
         game: "focus",
         event: "difficulty_changed",
-        difficulty: difficultySnapshot(result.decision.level),
+        difficulty: difficultySnapshot(result.decision.level, 0.8),
         payload: {
           direction: result.decision.direction,
           performance: result.decision.targetPerformance,
+          reason: result.decision.reason,
         },
       });
     }
   }, [adaptive, sessionId]);
 
-  const finishRound = useCallback((wasCorrect: boolean, reaction?: number) => {
+  const endRound = useCallback((
+    outcome: "hit" | "miss" | "false_positive" | "timeout",
+    reaction?: number,
+  ) => {
     clearTimer();
+
+    const wasCorrect = outcome === "hit";
+    const currentChallenge = challenge;
+    const difficulty = currentChallenge?.difficulty ?? focusDifficultyForLevel(level);
+
     if (sessionId) {
       recordEvent({
         sessionId,
         skill: "focus",
         game: "focus",
         event: "trial_completed",
-        difficulty: difficultySnapshot(level),
+        difficulty: difficultySnapshot(level, currentChallenge?.structuralScore ?? 0.5),
+        performance: {
+          accuracy: wasCorrect ? 1 : 0,
+          reactionControl: reaction === undefined
+            ? 0
+            : Math.max(0, Math.min(1, 1 - reaction / 3000)),
+          consistency: streak / Math.max(1, ROUNDS),
+          difficulty: currentChallenge?.structuralScore ?? level / 5,
+        },
         payload: {
-          correct: wasCorrect,
+          outcome,
           reactionMs: reaction ?? null,
+          targetSimilarity: difficulty.targetSimilarity,
+          distractorSimilarity: difficulty.distractorSimilarity,
+          distractorDiversity: difficulty.distractorDiversity,
+          spatialUncertainty: difficulty.spatialUncertainty,
+          spatialCompetition: difficulty.spatialCompetition,
+          visualComplexity: difficulty.visualComplexity,
+          temporalPressure: difficulty.temporalPressure,
         },
       });
+
       if (!wasCorrect) {
         recordEvent({
           sessionId,
           skill: "focus",
           game: "focus",
           event: "mistake",
-          difficulty: difficultySnapshot(level),
+          difficulty: difficultySnapshot(level, currentChallenge?.structuralScore ?? 0.5),
+          payload: { reason: outcome },
         });
       }
     }
+
     advanceDifficulty(wasCorrect);
 
     if (wasCorrect) {
@@ -146,73 +174,85 @@ export default function FocusChallenge() {
         setBestStreak((best) => Math.max(best, next));
         return next;
       });
-      if (reaction !== undefined) setReactionTotal((value) => value + reaction);
+      if (reaction !== undefined) {
+        setReactionTotal((value) => value + reaction);
+        setReactionSamples((values) => [...values, reaction]);
+      }
     } else {
       setMistakes((value) => value + 1);
       setStreak(0);
     }
 
     setPhase("wait");
-
     timerRef.current = window.setTimeout(() => {
       if (round >= ROUNDS - 1) {
         setFinished(true);
         setPhase("ready");
       } else {
-        setRound((value) => value + 1);
+        const nextRound = round + 1;
+        setRound(nextRound);
         setPhase("ready");
+        if (!wasCorrect) recordRecovery(nextRound);
       }
       timerRef.current = null;
     }, FORGE_CONFIG.focus.waitDurationMs);
-  }, [advanceDifficulty, clearTimer, level, round, sessionId]);
+  }, [
+    advanceDifficulty,
+    challenge,
+    clearTimer,
+    level,
+    recordRecovery,
+    round,
+    sessionId,
+    streak,
+  ]);
 
   const createRound = useCallback(() => {
     clearTimer();
 
-    const complexity = levelConfig.familyComplexity;
     const nextMode = pick(FOCUS_MODES);
-    const nextTarget = pick(FOCUS_LIBRARIES[nextMode]);
-    const nextTargetCell = Math.floor(Math.random() * GRID_SIZE);
+    const nextLevel = level;
+    const nextDifficulty = focusDifficultyForLevel(nextLevel);
+    const nextChallenge = generateFocusChallenge({
+      mode: nextMode,
+      library: FOCUS_LIBRARIES[nextMode],
+      gridSize: GRID_SIZE,
+      level: nextLevel,
+      difficulty: nextDifficulty,
+    });
 
     setMode(nextMode);
-    setTarget(nextTarget);
-    setPalette(makePalette(nextMode, nextTarget, complexity));
-    setTargetCell(nextTargetCell);
+    setTarget(nextChallenge.target);
+    setTargetCell(nextChallenge.targetCell);
+    setChallenge(nextChallenge);
     setPhase("visible");
     setShownAt(performance.now());
 
-    timerRef.current = window.setTimeout(() => {
-      // Expiration is a measured miss, not an unrecorded timeout.
-      if (sessionId) {
-        recordEvent({
-          sessionId, skill: "focus", game: "focus",
-          event: "trial_completed",
-          difficulty: difficultySnapshot(level),
-          payload: { correct: false, reactionMs: null, expired: true },
-        });
-        recordEvent({
-          sessionId, skill: "focus", game: "focus",
-          event: "mistake", difficulty: difficultySnapshot(level),
-          payload: { reason: "timeout" },
-        });
-      }
-      advanceDifficulty(false);
-      setPhase("wait");
-      setMistakes((value) => value + 1);
-      setStreak(0);
+    if (sessionId) {
+      recordEvent({
+        sessionId,
+        skill: "focus",
+        game: "focus",
+        event: "trial_started",
+        difficulty: difficultySnapshot(nextLevel, nextChallenge.structuralScore),
+        payload: {
+          round,
+          mode: nextMode,
+          targetSimilarity: nextDifficulty.targetSimilarity,
+          distractorSimilarity: nextDifficulty.distractorSimilarity,
+          distractorDiversity: nextDifficulty.distractorDiversity,
+          spatialUncertainty: nextDifficulty.spatialUncertainty,
+          spatialCompetition: nextDifficulty.spatialCompetition,
+          visualComplexity: nextDifficulty.visualComplexity,
+          temporalPressure: nextDifficulty.temporalPressure,
+        },
+      });
+    }
 
-      timerRef.current = window.setTimeout(() => {
-        if (round >= ROUNDS - 1) {
-          setFinished(true);
-          setPhase("ready");
-        } else {
-          setRound((value) => value + 1);
-          setPhase("ready");
-        }
-        timerRef.current = null;
-      }, FORGE_CONFIG.focus.waitDurationMs);
+    timerRef.current = window.setTimeout(() => {
+      endRound("timeout");
     }, visibleMs);
-  }, [advanceDifficulty, clearTimer, levelConfig.familyComplexity, round, visibleMs]);
+  }, [clearTimer, endRound, level, round, sessionId, visibleMs]);
 
   const start = () => {
     clearTimer();
@@ -220,14 +260,19 @@ export default function FocusChallenge() {
     setFinished(false);
     setRound(0);
     setLevel(FORGE_CONFIG.focus.startingLevel);
-    setGoodRounds(0);
-    setPoorRounds(0);
     setHits(0);
     setMistakes(0);
     setStreak(0);
     setBestStreak(0);
     setReactionTotal(0);
-    const nextSession = startForgeSession("focus", "focus", { rounds: ROUNDS });
+    setReactionSamples([]);
+    setChallenge(null);
+
+    const nextSession = startForgeSession("focus", "focus", {
+      rounds: ROUNDS,
+      gridSize: GRID_SIZE,
+      difficultyModel: "perceptual-v1",
+    });
     setSessionId(nextSession);
     setAdaptive({
       level: FORGE_CONFIG.focus.startingLevel,
@@ -235,7 +280,6 @@ export default function FocusChallenge() {
       downStreak: 0,
       history: [],
     });
-    setLevel(FORGE_CONFIG.focus.startingLevel);
     setPhase("ready");
 
     timerRef.current = window.setTimeout(() => {
@@ -245,9 +289,9 @@ export default function FocusChallenge() {
   };
 
   const choose = (index: number) => {
-    if (!started || finished || phase !== "visible") return;
+    if (!started || finished || phase !== "visible" || !challenge) return;
     const reaction = performance.now() - shownAt;
-    finishRound(index === targetCell, index === targetCell ? reaction : undefined);
+    endRound(index === targetCell ? "hit" : "false_positive", reaction);
   };
 
   useEffect(() => {
@@ -260,11 +304,10 @@ export default function FocusChallenge() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [started, finished, phase, targetCell, shownAt]);
+  }, [started, finished, phase, targetCell, shownAt, challenge]);
 
   useEffect(() => {
-    if (!started || finished || phase !== "ready") return;
-    if (round === 0) return;
+    if (!started || finished || phase !== "ready" || round === 0) return;
     createRound();
   }, [round, started, finished, phase, createRound]);
 
@@ -273,11 +316,12 @@ export default function FocusChallenge() {
   const score = useMemo(() => {
     if (!finished) return 0;
     const accuracy = hits / Math.max(1, hits + mistakes);
-    const avgReaction = reactionTotal / Math.max(1, hits);
-    const speed = Math.max(0, 1 - avgReaction / FORGE_CONFIG.focus.resultSpeedReferenceMs);
+    const sorted = [...reactionSamples].sort((a, b) => a - b);
+    const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 3000;
+    const reactionQuality = Math.max(0, 1 - median / FORGE_CONFIG.focus.resultSpeedReferenceMs);
     const streakBonus = Math.min(10, bestStreak * 0.8);
-    return Math.round(Math.min(100, accuracy * 65 + speed * 25 + streakBonus));
-  }, [finished, hits, mistakes, reactionTotal, bestStreak]);
+    return Math.round(Math.min(100, accuracy * 65 + reactionQuality * 25 + streakBonus));
+  }, [finished, hits, mistakes, reactionSamples, bestStreak]);
 
   const previousBest = typeof window === "undefined"
     ? 0
@@ -287,21 +331,26 @@ export default function FocusChallenge() {
     if (!finished || !sessionId) return;
 
     const performance = hits / Math.max(1, hits + mistakes);
+    const sorted = [...reactionSamples].sort((a, b) => a - b);
+    const medianReaction = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 3000;
+    const reactionControl = Math.max(0, Math.min(1, 1 - medianReaction / 3000));
+    const missRate = mistakes / Math.max(1, hits + mistakes);
+    const currentDifficulty = challenge?.structuralScore ?? level / Math.max(1, FORGE_CONFIG.focus.maxLevel);
+
     updateSkillModel(
-    "focus",
-    performance,
-    level,
-    performance >= FORGE_CONFIG.focus.goodAccuracy,
-    {
-      accuracy: performance,
-      reactionControl:
-        reactionTotal > 0
-          ? Math.max(0, Math.min(1, 1 - reactionTotal / Math.max(1, hits * 3000)))
-          : performance,
-      consistency: bestStreak / Math.max(1, ROUNDS),
-      difficulty: level / Math.max(1, FORGE_CONFIG.focus.maxLevel),
-    },
-  );
+      "focus",
+      performance,
+      level,
+      performance >= FORGE_CONFIG.focus.goodAccuracy,
+      {
+        accuracy: performance,
+        reactionControl,
+        consistency: bestStreak / Math.max(1, ROUNDS),
+        difficulty: currentDifficulty,
+        recovery: Math.max(0, 1 - missRate),
+      },
+    );
+
     applyCrossSkillTransfer("focus", "control", performance * 0.2 - 0.1);
     applyCrossSkillTransfer("focus", "consistency", performance * 0.15 - 0.075);
 
@@ -310,22 +359,37 @@ export default function FocusChallenge() {
       skill: "focus",
       game: "focus",
       event: "session_completed",
-      difficulty: difficultySnapshot(level),
+      difficulty: difficultySnapshot(level, currentDifficulty),
       payload: {
         score,
         accuracy: performance,
         hits,
         mistakes,
         bestStreak,
+        medianReactionMs: medianReaction,
+        outcomeModel: "hit-miss-false-positive-timeout",
       },
     });
-  }, [finished, sessionId, score, hits, mistakes, bestStreak, level]);
+
+    window.localStorage.setItem("forge.lastFocus", String(score));
+  }, [
+    finished,
+    sessionId,
+    score,
+    hits,
+    mistakes,
+    bestStreak,
+    level,
+    reactionSamples,
+    challenge,
+  ]);
 
   const showField = phase === "visible";
   const accuracy = hits / Math.max(1, hits + mistakes);
+  const currentDifficulty = challenge?.difficulty ?? focusDifficultyForLevel(level);
   const improvementMessage =
     score > previousBest && previousBest > 0
-      ? "You improved your Focus score. The field also adapts as your accuracy holds."
+      ? "You improved your Focus score. The field also changed its perceptual demands."
       : score === previousBest && previousBest > 0
         ? "You matched your best. One deliberate session is enough for today."
         : score < previousBest && previousBest > 0
@@ -346,14 +410,14 @@ export default function FocusChallenge() {
           <div className="eyebrow">FOCUS · ADAPTIVE VISUAL SEARCH</div>
           <h1>Find it before it vanishes.</h1>
           <p>
-            Every position is populated when the field appears. Scan for the exact target
-            while the visual family, distractor similarity, and reaction window adapt
-            to your performance.
+            Find the exact target while FORGE changes more than speed:
+            confusability, family complexity, spatial uncertainty, visual competition
+            and distractor variety all contribute to the challenge.
           </p>
           <div className="rule-pills">
             <span>6 visual families</span>
             <span>36 positions</span>
-            <span>Adaptive speed</span>
+            <span>7 difficulty dimensions</span>
             <span>WAIT phases</span>
           </div>
           <button className="btn btn-primary" onClick={start}>Begin Focus</button>
@@ -373,19 +437,23 @@ export default function FocusChallenge() {
               <>
                 <span>FIND THIS · {mode.toUpperCase()}</span>
                 <strong>{target.glyph}</strong>
-                <small>Find the exact target. Distractors vary in type, color, size and rotation.</small>
+                <small>Exact match only. Scan broadly before committing.</small>
               </>
             )}
           </div>
 
+          {showField && (
+            <div className="focus-difficulty-readout" aria-live="polite">
+              <span>SEARCH LOAD</span>
+              <b>{Math.round((challenge?.structuralScore ?? 0) * 100)}</b>
+              <i style={{ width: `${Math.round((challenge?.structuralScore ?? 0) * 100)}%` }} />
+            </div>
+          )}
+
           <div className={"focus-grid " + (showField ? "focus-grid-live" : "focus-grid-wait")}>
             {Array.from({ length: GRID_SIZE }, (_, index) => {
-              // Every live cell is intentionally populated. Density now controls
-              // visual clutter within each tile, never whether a tile is empty.
-              const item = index === targetCell
-                ? target
-                : palette[1 + ((index * 7 + round * 3 + level) % Math.max(1, palette.length - 1))];
-              const occupied = showField;
+              const cell = challenge?.cells[index];
+              const item = cell?.item;
 
               return (
                 <button
@@ -393,7 +461,7 @@ export default function FocusChallenge() {
                   className={"focus-cell " + (showField && index === targetCell ? "focus-target" : "")}
                   onClick={() => choose(index)}
                   disabled={phase !== "visible"}
-                  style={item ? visualStyle(index, item, index === targetCell) : undefined}
+                  style={item && challenge ? visualStyle(index, item, index === targetCell, challenge) : undefined}
                   aria-label={
                     showField && index === targetCell
                       ? target.label
@@ -402,7 +470,7 @@ export default function FocusChallenge() {
                         : "field position"
                   }
                 >
-                  {occupied && item ? item.glyph : ""}
+                  {showField && item ? item.glyph : ""}
                 </button>
               );
             })}
@@ -411,14 +479,14 @@ export default function FocusChallenge() {
           <div className="live-stats">
             <span>STREAK <b>{streak}</b></span>
             <span>HITS <b>{hits}</b></span>
-            <span>MISS <b>{mistakes}</b></span>
+            <span>ERRORS <b>{mistakes}</b></span>
             <span>LEVEL <b>{level}</b></span>
           </div>
 
           <p className="game-hint">
             {phase === "wait"
               ? "WAIT is intentional: the target is gone. Resist the urge to tap."
-              : `Level ${level}: scan the whole field. Hold accuracy to unlock a harder field.`}
+              : `Level ${level}: accuracy first. Complexity rises before reaction speed does.`}
           </p>
         </section>
       )}
@@ -430,12 +498,16 @@ export default function FocusChallenge() {
           <div className="result-label">FOCUS SCORE</div>
           <div className="result-stats">
             <div><strong>{hits}</strong><span>correct</span></div>
-            <div><strong>{mistakes}</strong><span>misses</span></div>
+            <div><strong>{mistakes}</strong><span>errors</span></div>
             <div><strong>{bestStreak}</strong><span>best streak</span></div>
           </div>
           <p>{improvementMessage}</p>
           <p className="game-hint">
-            Session accuracy: {Math.round(accuracy * 100)}%. Highest adaptive level reached: {level}.
+            Session accuracy: {Math.round(accuracy * 100)}% · Median reaction: {
+              reactionSamples.length
+                ? Math.round([...reactionSamples].sort((a, b) => a - b)[Math.floor(reactionSamples.length / 2)])
+                : "—"
+            } ms · Highest adaptive level: {level}.
           </p>
           <div className="cta-row">
             <button className="btn btn-primary" onClick={start}>Play another mix</button>
