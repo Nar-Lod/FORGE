@@ -222,6 +222,27 @@ The repository history establishes this sequence:
 
 ## Current active section: Focus
 
+### Focus difficulty contract — implemented
+
+The Focus generator now treats difficulty as a measurable vector rather than a single level or reaction-time setting:
+
+| Dimension | What it controls |
+|---|---|
+| Target similarity | How visually confusable the target is with competing items |
+| Distractor similarity | How many distractors share target-family characteristics |
+| Distractor diversity | How varied the competing items are |
+| Spatial uncertainty | How unpredictable the target location is |
+| Spatial competition | How strongly neighboring items compete for attention |
+| Visual complexity | Rotation, scale, hue variation and presentation noise |
+| Temporal pressure | Reaction-window pressure; deliberately kept secondary for now |
+
+The generator contract lives in `lib/focus-generator.ts` and returns the target, target cell, fully populated grid, mode, difficulty vector and structural challenge score. Focus trial telemetry records these dimensions alongside HIT, FALSE_POSITIVE and TIMEOUT outcomes.
+
+**Current build rule:** complexity changes before aggressive timing changes. The 3-second reaction baseline remains intact until the new perceptual generator and telemetry have enough evidence to support timing adaptation.
+
+**Not yet introduced:** target-absent trials. They will be added only after the target-present generator is stable, because target prevalence changes decision behavior and would confound the first adaptive pass.
+
+
 Focus is the next major build. The implementation target is **not** “make the reaction time faster.” Difficulty must become multidimensional:
 
 1. reaction timing;
