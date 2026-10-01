@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { getAnalyticsEvents, getPlayerModel, type ForgeSkill } from "../lib/forge-analytics";
 
 const skills = [
   ["FOCUS", "Hold attention when distractions compete.", "/challenges/focus", "01", "◎"],
@@ -10,11 +11,25 @@ const skills = [
   ["PERSISTENCE", "Adapt when the challenge gets harder.", "/challenges/persistence", "04", "↻"],
   ["CONSISTENCY", "Remember your pattern. Rebuild it.", "/challenges/consistency", "05", "▦"],
 ];
-const fallbackMetrics = [["Focus", 0], ["Control", 0], ["Patience", 0], ["Persistence", 0], ["Consistency", 0]];
+const skillLabels: Record<ForgeSkill, string> = {
+  focus: "Focus",
+  control: "Control",
+  patience: "Patience",
+  persistence: "Persistence",
+  consistency: "Consistency",
+};
+const fallbackMetrics: [string, number][] = Object.values(skillLabels).map((label) => [label, 0]);
 
 export default function Home(){
-  const [metrics,setMetrics]=useState(fallbackMetrics),[sessions,setSessions]=useState(0);
-  useEffect(()=>{const saved=window.localStorage.getItem("forge.metrics"),ss=Number(window.localStorage.getItem("forge.sessions")||0);if(saved){try{setMetrics(JSON.parse(saved))}catch{}}setSessions(ss)},[]);
+  const [metrics,setMetrics]=useState<[string,number][]>(fallbackMetrics),[sessions,setSessions]=useState(0);
+  useEffect(()=>{
+    const model=getPlayerModel();
+    const next=(Object.entries(skillLabels) as [ForgeSkill,string][])
+      .map(([skill,label])=>[label,Math.round(model.skills[skill].rating*100)] as [string,number]);
+    setMetrics(next);
+    const completed=getAnalyticsEvents().filter((event)=>event.event==="session_completed").length;
+    setSessions(completed);
+  },[]);
   const overall=metrics.length?Math.round(metrics.reduce((s,[,v])=>s+Number(v),0)/metrics.length):0;
   const strongest=useMemo(()=>[...metrics].sort((a,b)=>Number(b[1])-Number(a[1]))[0],[metrics]);
   return <div className="forge-world">
