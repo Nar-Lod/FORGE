@@ -7,6 +7,7 @@ import {
   recordEvent,
   startForgeSession,
   updateSkillModel,
+  applyCrossSkillTransfer,
 } from "../../../lib/forge-analytics";
 import {
   chooseInitialDifficulty,
@@ -185,6 +186,8 @@ export default function ConsistencyChallenge() {
     setScores(nextScores);
 
     if (sessionId) {
+      applyCrossSkillTransfer("consistency", "persistence", performance * 0.15 - 0.075);
+
       updateSkillModel(
         "consistency",
         performance,
