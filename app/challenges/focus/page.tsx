@@ -67,7 +67,7 @@ export default function FocusChallenge() {
   const timerRef = useRef<number | null>(null);
 
   const levelConfig = FORGE_CONFIG.focus.levels[level - 1];
-  const visibleMs = levelConfig.reactionMs;
+  const visibleMs = levelConfig.reactionMs * 2;
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -437,7 +437,7 @@ export default function FocusChallenge() {
               <>
                 <span>FIND THIS · {mode.toUpperCase()}</span>
                 <strong>{target.glyph}</strong>
-                <small>Exact match only. Scan broadly before committing.</small>
+                <small>Scan the field. The target is not highlighted — identify it from the rule.</small>
               </>
             )}
           </div>
@@ -458,7 +458,7 @@ export default function FocusChallenge() {
               return (
                 <button
                   key={round + "-" + index}
-                  className={"focus-cell " + (showField && index === targetCell ? "focus-target" : "")}
+                  className="focus-cell"
                   onClick={() => choose(index)}
                   disabled={phase !== "visible"}
                   style={item && challenge ? visualStyle(index, index === targetCell, challenge) : undefined}
