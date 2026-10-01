@@ -11,6 +11,7 @@ import {
 import {
   chooseInitialDifficulty,
   difficultySnapshot,
+  getAdaptiveProfile,
   updateAdaptiveState,
   type AdaptiveState,
 } from "../../../lib/forge-adaptive";
@@ -72,20 +73,7 @@ export default function ConsistencyChallenge() {
     setRecoveryLevels(0);
     setCredits(getCredits());
 
-    const adaptiveConfig = {
-      minLevel: 1,
-      maxLevel: LEVELS.length,
-      startingLevel: 1,
-      bands: LEVELS.map((items, index) => ({
-        level: index + 1,
-        minPerformance: 0,
-        maxPerformance: 1,
-      })),
-      upThreshold: 0.9,
-      downThreshold: 0.55,
-      consecutiveUp: 1,
-      consecutiveDown: 2,
-    };
+    const adaptiveConfig = getAdaptiveProfile("consistency");
     const initialLevel = chooseInitialDifficulty("consistency", adaptiveConfig);
     setAdaptive({
       level: initialLevel,
