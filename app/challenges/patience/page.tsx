@@ -72,6 +72,7 @@ export default function PatienceChallenge(){
  const bank=()=>{
    if(!ready)return;
    const completedSeconds=waitSeconds;
+   window.localStorage.setItem(LAST_KEY,String(completedSeconds));
    setBanked(v=>v+1);
    if(round>=WAIT_SECONDS.length-1){
      setFinished(true);startedAt.current=null;
@@ -92,6 +93,7 @@ export default function PatienceChallenge(){
  };
  const closeTraining=()=>{
    startedAt.current=null;setFinished(true);setElapsed(0);setMilestone(null);
+   window.localStorage.setItem(LAST_KEY,String(Math.floor(elapsed/1000)));
    recordEvent({sessionId,skill:"patience",game:"patience",event:"session_completed",difficulty:difficultySnapshot(round+1),payload:{banked,early,stoppedIntentionally:true}});
  };
  const improvement=Math.floor(elapsed/1000)-previousBreak;
