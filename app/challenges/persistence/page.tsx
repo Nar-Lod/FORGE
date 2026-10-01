@@ -3,6 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { REVEAL_COST, getCredits, spendCredits } from "../../../lib/forge-credits";
+import {
+  recordEvent,
+  startForgeSession,
+  updateSkillModel,
+} from "../../../lib/forge-analytics";
+import {
+  chooseInitialDifficulty,
+  difficultySnapshot,
+  updateAdaptiveState,
+  type AdaptiveState,
+} from "../../../lib/forge-adaptive";
 
 type Item = { id: string; shape: string; color: string };
 
@@ -106,6 +117,13 @@ export default function PersistenceChallenge() {
   const [revealing, setRevealing] = useState(false);
   const [levelReveals, setLevelReveals] = useState(0);
   const [totalReveals, setTotalReveals] = useState(0);
+  const [sessionId, setSessionId] = useState("");
+  const [adaptive, setAdaptive] = useState<AdaptiveState>({
+    level: 1,
+    upStreak: 0,
+    downStreak: 0,
+    history: [],
+  });
 
   const length = LEVELS[level];
   const config = LEVEL_CONFIG[level];
@@ -141,7 +159,33 @@ export default function PersistenceChallenge() {
     setFirstTryClears(0);
     setLastLevelPoints(0);
     setTotalReveals(0);
-    startLevel(0);
+
+    const adaptiveConfig = {
+      minLevel: 1,
+      maxLevel: LEVELS.length,
+      startingLevel: 1,
+      bands: LEVELS.map((items, index) => ({
+        level: index + 1,
+        minPerformance: 0,
+        maxPerformance: 1,
+      })),
+      upThreshold: 0.9,
+      downThreshold: 0.55,
+      consecutiveUp: 1,
+      consecutiveDown: 2,
+    };
+    const initialLevel = chooseInitialDifficulty("persistence", adaptiveConfig);
+    setAdaptive({
+      level: initialLevel,
+      upStreak: 0,
+      downStreak: 0,
+      history: [],
+    });
+    const nextSession = startForgeSession("persistence", "persistence", {
+      startingLevel: initialLevel,
+    });
+    setSessionId(nextSession);
+    startLevel(initialLevel - 1);
   };
 
   useEffect(() => {
@@ -157,6 +201,16 @@ export default function PersistenceChallenge() {
     setCredits(getCredits());
     setLevelReveals((current) => current + 1);
     setTotalReveals((current) => current + 1);
+    if (sessionId) {
+      recordEvent({
+        sessionId,
+        skill: "persistence",
+        game: "persistence",
+        event: "reveal_used",
+        difficulty: difficultySnapshot(level + 1),
+        payload: { credits: REVEAL_COST },
+      });
+    }
     setRevealing(true);
     window.setTimeout(() => setRevealing(false), 2500);
   };
@@ -207,11 +261,41 @@ export default function PersistenceChallenge() {
     const correct = answer.every((item, index) => same(item, sequence[index]));
     setSubmitted(true);
 
+    if (sessionId) {
+      recordEvent({
+        sessionId,
+        skill: "persistence",
+        game: "persistence",
+        event: "trial_completed",
+        difficulty: difficultySnapshot(level + 1),
+        payload: {
+          correct,
+          attempt: attemptNumber,
+          reveals: levelReveals,
+          sequenceLength: length,
+          correctPositions: correctCount,
+        },
+      });
+    }
+
     if (!correct) {
       setWrong((current) => current + 1);
       setLevelMisses((current) => current + 1);
       setLastResult("wrong");
       setReplacementIndex(null);
+      if (sessionId) {
+        recordEvent({
+          sessionId,
+          skill: "persistence",
+          game: "persistence",
+          event: "recovery",
+          difficulty: difficultySnapshot(level + 1),
+          payload: {
+            attempt: attemptNumber,
+            correctPositions: correctCount,
+          },
+        });
+      }
       playFeedback("error");
       return;
     }
@@ -233,17 +317,70 @@ export default function PersistenceChallenge() {
     if (attemptNumber === 1) setFirstTryClears((current) => current + 1);
     playFeedback(level === LEVELS.length - 1 ? "milestone" : "success");
 
-    if (level === LEVELS.length - 1) {
+    const performance =
+      (attemptNumber === 1 ? 1 : 0.72) *
+      (levelReveals > 0 ? 0.55 : 1);
+
+    const adaptiveResult = updateAdaptiveState(
+      adaptive,
+      performance,
+      {
+        minLevel: 1,
+        maxLevel: LEVELS.length,
+        startingLevel: 1,
+        bands: LEVELS.map((items, index) => ({
+          level: index + 1,
+          minPerformance: 0,
+          maxPerformance: 1,
+        })),
+        upThreshold: 0.9,
+        downThreshold: 0.55,
+        consecutiveUp: 1,
+        consecutiveDown: 2,
+      },
+    );
+    setAdaptive(adaptiveResult.state);
+
+    if (sessionId) {
+      updateSkillModel("persistence", performance, adaptiveResult.decision.level, true);
+      recordEvent({
+        sessionId,
+        skill: "persistence",
+        game: "persistence",
+        event: "difficulty_changed",
+        difficulty: difficultySnapshot(adaptiveResult.decision.level),
+        payload: {
+          direction: adaptiveResult.decision.direction,
+          performance,
+        },
+      });
+    }
+
+    if (adaptiveResult.decision.level === LEVELS.length) {
       setBest((current) => {
         const next = Math.max(current, nextScore);
         window.localStorage.setItem("forge.persistence.best", String(next));
         return next;
       });
       setFinished(true);
+      if (sessionId) {
+        recordEvent({
+          sessionId,
+          skill: "persistence",
+          game: "persistence",
+          event: "session_completed",
+          difficulty: difficultySnapshot(LEVELS.length),
+          payload: {
+            score: nextScore,
+            levelsCleared: levelsCleared + 1,
+            reveals: totalReveals,
+          },
+        });
+      }
       return;
     }
 
-    const nextLevel = level + 1;
+    const nextLevel = adaptiveResult.decision.level - 1;
     window.setTimeout(() => startLevel(nextLevel), 900);
   };
 
