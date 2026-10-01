@@ -5,9 +5,22 @@ import Link from "next/link";
 
 type Item = { id: string; shape: string; color: string };
 
-const LEVELS = [5, 6, 7, 8, 9, 10, 11, 12];
+const LEVELS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+const LEVEL_CONFIG = [
+  { exposurePerItem: 1900, buffer: 700, manual: true, decoys: 2 },
+  { exposurePerItem: 1700, buffer: 700, manual: true, decoys: 2 },
+  { exposurePerItem: 1500, buffer: 650, manual: true, decoys: 3 },
+  { exposurePerItem: 1350, buffer: 600, manual: false, decoys: 3 },
+  { exposurePerItem: 1250, buffer: 550, manual: false, decoys: 3 },
+  { exposurePerItem: 1150, buffer: 500, manual: false, decoys: 4 },
+  { exposurePerItem: 1050, buffer: 450, manual: false, decoys: 4 },
+  { exposurePerItem: 980, buffer: 450, manual: false, decoys: 4 },
+  { exposurePerItem: 900, buffer: 400, manual: false, decoys: 4 },
+  { exposurePerItem: 820, buffer: 400, manual: false, decoys: 4 },
+];
+
 const SHAPES = ["●", "■", "▲", "◆", "⬟", "⬢", "★", "✚", "✦", "⬣", "✿", "☀"];
-// Twelve visually distinct colours are required because the final level has 12 items.
 const COLORS = [
   "red", "blue", "green", "yellow", "purple", "orange",
   "pink", "cyan", "lime", "violet", "teal", "coral",
@@ -22,12 +35,13 @@ function shuffle<T>(items: T[]): T[] {
   return result;
 }
 
-// Every memorized item has a unique shape AND a unique colour within the level.
+// The identity of an item is always shape + colour.
+// Each level uses unique shapes and unique colours, eliminating visual ambiguity.
 function makeSequence(length: number): Item[] {
-  const count = Math.min(length, SHAPES.length, COLORS.length);
-  const shapes = shuffle(SHAPES).slice(0, count);
-  const colors = shuffle(COLORS).slice(0, count);
+  const shapes = shuffle(SHAPES).slice(0, length);
+  const colors = shuffle(COLORS).slice(0, length);
 
+  // Re-shuffle the paired identities so neither shape nor colour predicts position.
   return shuffle(
     shapes.map((shape, index) => ({
       id: `${shape}-${colors[index]}`,
@@ -38,6 +52,36 @@ function makeSequence(length: number): Item[] {
 }
 
 const same = (a: Item, b: Item) => a.id === b.id;
+
+function playFeedback(kind: "success" | "error" | "milestone") {
+  try {
+    if ("vibrate" in navigator) {
+      navigator.vibrate(kind === "error" ? [35, 25, 35] : kind === "milestone" ? [25, 40, 70] : 25);
+    }
+  } catch {
+    // Haptics are optional and must never block gameplay.
+  }
+
+  try {
+    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = kind === "error" ? 180 : kind === "milestone" ? 620 : 440;
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.045, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + (kind === "milestone" ? 0.22 : 0.11));
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + (kind === "milestone" ? 0.24 : 0.13));
+    oscillator.onended = () => void ctx.close();
+  } catch {
+    // Audio is optional and browser autoplay policies may block it.
+  }
+}
 
 export default function PersistenceChallenge() {
   const [started, setStarted] = useState(false);
@@ -52,9 +96,14 @@ export default function PersistenceChallenge() {
   const [submitted, setSubmitted] = useState(false);
   const [lastResult, setLastResult] = useState<"correct" | "wrong" | null>(null);
   const [replacementIndex, setReplacementIndex] = useState<number | null>(null);
+  const [levelAttempts, setLevelAttempts] = useState(0);
+  const [levelsCleared, setLevelsCleared] = useState(0);
+  const [firstTryClears, setFirstTryClears] = useState(0);
+  const [lastLevelPoints, setLastLevelPoints] = useState(0);
 
   const length = LEVELS[level];
-  const manual = level < 4;
+  const config = LEVEL_CONFIG[level];
+  const manual = config.manual;
 
   useEffect(() => {
     setBest(Number(window.localStorage.getItem("forge.persistence.best") || 0));
@@ -69,6 +118,7 @@ export default function PersistenceChallenge() {
     setSubmitted(false);
     setLastResult(null);
     setReplacementIndex(null);
+    setLevelAttempts(0);
     setShowing(true);
   };
 
@@ -77,15 +127,18 @@ export default function PersistenceChallenge() {
     setFinished(false);
     setScore(0);
     setWrong(0);
+    setLevelsCleared(0);
+    setFirstTryClears(0);
+    setLastLevelPoints(0);
     startLevel(0);
   };
 
   useEffect(() => {
     if (!started || !showing || manual) return;
-    const duration = 5500 + length * 650;
+    const duration = config.buffer + length * config.exposurePerItem;
     const timer = window.setTimeout(() => setShowing(false), duration);
     return () => window.clearTimeout(timer);
-  }, [started, showing, manual, length]);
+  }, [started, showing, manual, length, config.buffer, config.exposurePerItem]);
 
   const arrange = () => {
     setShowing(false);
@@ -99,7 +152,6 @@ export default function PersistenceChallenge() {
     if (showing || finished || (submitted && lastResult === "correct")) return;
 
     if (replacementIndex !== null) {
-      // Do not allow the same item to occupy two answer positions.
       if (answer.some((selected, index) => index !== replacementIndex && same(selected, item))) return;
       setAnswer((current) => current.map((selected, index) => index === replacementIndex ? item : selected));
       setReplacementIndex(null);
@@ -127,8 +179,10 @@ export default function PersistenceChallenge() {
   );
 
   const submit = () => {
-    if (answer.length !== length) return;
+    if (answer.length !== length || replacementIndex !== null) return;
 
+    const attemptNumber = levelAttempts + 1;
+    setLevelAttempts(attemptNumber);
     const correct = answer.every((item, index) => same(item, sequence[index]));
     setSubmitted(true);
 
@@ -136,13 +190,26 @@ export default function PersistenceChallenge() {
       setWrong((current) => current + 1);
       setLastResult("wrong");
       setReplacementIndex(null);
+      playFeedback("error");
       return;
     }
 
     setLastResult("correct");
     setReplacementIndex(null);
-    const nextScore = score + length * 10;
+
+    // Harder levels are worth more. A clean first attempt earns a meaningful bonus;
+    // recovery still earns progress without rewarding repeated guessing.
+    const basePoints = 70 + length * 22;
+    const firstTryBonus = attemptNumber === 1 ? 45 : 0;
+    const cleanBonus = wrong === 0 && attemptNumber === 1 ? 20 : 0;
+    const levelPoints = basePoints + firstTryBonus + cleanBonus;
+    const nextScore = score + levelPoints;
+
     setScore(nextScore);
+    setLastLevelPoints(levelPoints);
+    setLevelsCleared((current) => current + 1);
+    if (attemptNumber === 1) setFirstTryClears((current) => current + 1);
+    playFeedback(level === LEVELS.length - 1 ? "milestone" : "success");
 
     if (level === LEVELS.length - 1) {
       setBest((current) => {
@@ -158,8 +225,6 @@ export default function PersistenceChallenge() {
     window.setTimeout(() => startLevel(nextLevel), 900);
   };
 
-  // Decoys also use unused shapes AND unused colours, so every visible choice
-  // is distinguishable on both dimensions.
   const options = useMemo(() => {
     if (!sequence.length) return [];
 
@@ -169,7 +234,7 @@ export default function PersistenceChallenge() {
     const unusedColors = shuffle(COLORS.filter((color) => !usedColors.has(color)));
 
     const decoys: Item[] = [];
-    const count = Math.min(unusedShapes.length, unusedColors.length, 4);
+    const count = Math.min(config.decoys, unusedShapes.length, unusedColors.length);
     for (let i = 0; i < count; i += 1) {
       decoys.push({
         id: `${unusedShapes[i]}-${unusedColors[i]}`,
@@ -179,13 +244,19 @@ export default function PersistenceChallenge() {
     }
 
     return shuffle([...sequence, ...decoys]);
-  }, [sequence]);
+  }, [sequence, config.decoys]);
+
+  const maxPossibleScore = LEVELS.reduce((total, items, index) => total + 70 + items * 22 + 45 + 20, 0);
+  const masteryPercent = Math.round((score / maxPossibleScore) * 100);
+  const firstTryRate = levelsCleared ? Math.round((firstTryClears / levelsCleared) * 100) : 0;
 
   return (
     <main className="game-shell">
       <div className="game-topbar">
         <Link href="/" className="game-back">← FORGE</Link>
-        <div className="game-progress">{started && !finished ? `LEVEL ${level + 1}/8` : "PERSISTENCE"}</div>
+        <div className="game-progress">
+          {started && !finished ? `LEVEL ${level + 1}/${LEVELS.length}` : "PERSISTENCE"}
+        </div>
       </div>
 
       {!started && (
@@ -193,13 +264,14 @@ export default function PersistenceChallenge() {
           <div className="eyebrow">PERSISTENCE · SEQUENCE MEMORY</div>
           <h1>Remember. Arrange. Adapt.</h1>
           <p>
-            Every level uses visually distinct shapes and colours. No two memorized
-            items share a shape or colour, so the task tests memory rather than visual ambiguity.
+            Build persistence by holding a growing sequence in memory, reconstructing it under pressure,
+            correcting mistakes and advancing when you are ready.
           </p>
           <div className="rule-pills">
-            <span>5 → 12 unique items</span>
+            <span>3 → 12 unique items</span>
             <span>Unique shape + colour</span>
-            <span>Timed from level 5</span>
+            <span>Timed pressure increases</span>
+            <span>Recovery matters</span>
           </div>
           <button className="btn btn-primary" onClick={begin}>Start Persistence</button>
         </section>
@@ -207,27 +279,38 @@ export default function PersistenceChallenge() {
 
       {started && !finished && (
         <section className="game-stage">
-          <div className="target-card">
-            <span>{showing ? "MEMORIZE" : "REBUILD"}</span>
+          <div className="target-card persistence-target">
+            <span>{showing ? "MEMORIZE" : "REBUILD"} · LEVEL {level + 1}</span>
             <strong>{showing ? `${length} ITEMS` : `${answer.length}/${length}`}</strong>
+            <small>{showing && !manual ? `Timed · ${(config.buffer + length * config.exposurePerItem) / 1000}s` : manual ? "Study at your pace" : "Reconstruct from memory"}</small>
           </div>
 
           {showing && (
             <>
-              <div className="focus-grid sequence-grid">
-                {sequence.map((item) => (
-                  <div key={item.id} className={`focus-cell sequence-cell ${item.color}`}>
-                    <span>{item.shape}</span>
-                  </div>
-                ))}
+              <div className="persistence-sequence-frame">
+                <div className="persistence-sequence-label">SEQUENCE</div>
+                <div className="focus-grid sequence-grid">
+                  {sequence.map((item, index) => (
+                    <div key={item.id} className={`focus-cell sequence-cell ${item.color}`} aria-label={`Sequence item ${index + 1}`}>
+                      <span>{item.shape}</span>
+                      <small>{index + 1}</small>
+                    </div>
+                  ))}
+                </div>
               </div>
-              {manual && <button className="btn btn-primary" onClick={arrange}>Arrange</button>}
+              {manual && <button className="btn btn-primary" onClick={arrange}>I&apos;ve got it — Arrange</button>}
+              {!manual && <p className="game-hint">Watch the sequence. It disappears automatically when your study window ends.</p>}
             </>
           )}
 
           {!showing && (
             <>
-              <div className="option-grid">
+              <div className="persistence-instruction">
+                <span>{replacementIndex !== null ? "REPLACE A POSITION" : "REBUILD THE SEQUENCE"}</span>
+                <strong>{replacementIndex !== null ? `Choose what belongs in position ${replacementIndex + 1}` : "Shape + colour + order"}</strong>
+              </div>
+
+              <div className="option-grid persistence-options">
                 {options.map((item) => {
                   const alreadySelected = answer.some((selected) => same(selected, item));
                   return (
@@ -236,6 +319,7 @@ export default function PersistenceChallenge() {
                       disabled={(submitted && lastResult === "correct") || (replacementIndex === null && alreadySelected)}
                       className={`switch-tile sequence-option ${item.color} ${alreadySelected ? "selected-option" : ""}`}
                       onClick={() => choose(item)}
+                      aria-label={`Choose ${item.shape} ${item.color}`}
                     >
                       <span>{item.shape}</span>
                     </button>
@@ -243,7 +327,7 @@ export default function PersistenceChallenge() {
                 })}
               </div>
 
-              <div className="answer-strip">
+              <div className="answer-strip persistence-answer-strip">
                 {Array.from({ length }).map((_, index) => {
                   const item = answer[index];
                   const replacing = replacementIndex === index;
@@ -263,11 +347,11 @@ export default function PersistenceChallenge() {
               </div>
 
               {replacementIndex !== null && (
-                <p className="game-hint">Position {replacementIndex + 1} is selected. Choose its replacement from the board.</p>
+                <p className="game-hint replacement-hint">Position {replacementIndex + 1} is selected. Choose its replacement above.</p>
               )}
 
               <button
-                className="btn btn-primary"
+                className="btn btn-primary persistence-submit"
                 disabled={answer.length !== length || replacementIndex !== null || (submitted && lastResult === "correct")}
                 onClick={submit}
               >
@@ -277,42 +361,70 @@ export default function PersistenceChallenge() {
               </button>
 
               {submitted && lastResult === "wrong" && (
-                <div className="game-hint correction-message">
-                  <strong>{correctCount}/{length} in the correct position.</strong>
-                  <span>Tap a selected position to replace it, then choose the replacement from the distinct items above.</span>
+                <div className="persistence-recovery">
+                  <div className="recovery-score">
+                    <strong>{correctCount}/{length}</strong>
+                    <span>positions correct</span>
+                  </div>
+                  <div>
+                    <b>Recover, don&apos;t restart.</b>
+                    <p>Tap any position you want to change, then choose its replacement. The sequence stays hidden.</p>
+                  </div>
                 </div>
               )}
             </>
           )}
 
-          <div className="live-stats">
+          <div className="live-stats persistence-live-stats">
             <span>LEVEL <b>{level + 1}</b></span>
             <span>ITEMS <b>{length}</b></span>
             <span>SCORE <b>{score}</b></span>
             <span>MISSES <b>{wrong}</b></span>
+            <span>LAST <b>+{lastLevelPoints}</b></span>
           </div>
 
-          <p className="game-hint">
+          <p className="game-hint persistence-footer-hint">
             {showing
               ? manual
-                ? "Study every shape, colour and its order. Press Arrange when you have memorized the complete sequence."
-                : "Study the complete sequence. Every item has a unique shape and colour. It will disappear automatically."
-              : "Rebuild the exact sequence. Every visible choice is distinct in both shape and colour."}
+                ? "Study every shape, colour and its exact order. You control when the sequence disappears."
+                : "The study window is shrinking per item as the levels rise. Hold the whole sequence, not just individual objects."
+              : "Rebuild the exact sequence. A mistake is information: correct it and keep moving."}
           </p>
         </section>
       )}
 
       {finished && (
-        <section className="result-card">
+        <section className="result-card persistence-result-card">
           <div className="eyebrow">PERSISTENCE COMPLETE</div>
           <div className="result-score">{score}</div>
           <div className="result-label">MEMORY PERSISTENCE SCORE</div>
+
+          <div className="persistence-mastery">
+            <div>
+              <span>MASTERY</span>
+              <strong>{masteryPercent}%</strong>
+            </div>
+            <div>
+              <span>FIRST-TRY CLEARS</span>
+              <strong>{firstTryRate}%</strong>
+            </div>
+            <div>
+              <span>MISSES</span>
+              <strong>{wrong}</strong>
+            </div>
+          </div>
+
           <div className="result-stats">
-            <div><strong>8</strong><span>levels cleared</span></div>
-            <div><strong>{wrong}</strong><span>misses</span></div>
+            <div><strong>{LEVELS.length}</strong><span>levels cleared</span></div>
+            <div><strong>3→12</strong><span>item range</span></div>
             <div><strong>{best}</strong><span>best score</span></div>
           </div>
-          <p>You progressed from deliberate study into timed memory pressure while adapting to longer sequences.</p>
+
+          <p>
+            You moved from deliberate memorization into timed pressure, longer sequences and recovery from mistakes.
+            Your score rewards difficult levels and clean first attempts without making failure a dead end.
+          </p>
+
           <div className="cta-row">
             <button className="btn btn-primary" onClick={begin}>Try again</button>
             <Link href="/" className="btn btn-secondary">I&apos;m done</Link>
