@@ -8,6 +8,7 @@ import {
   recordEvent,
   startForgeSession,
   updateSkillModel,
+  applyCrossSkillTransfer,
 } from "../../../lib/forge-analytics";
 import {
   difficultySnapshot,
@@ -287,6 +288,9 @@ export default function FocusChallenge() {
       difficulty: level / Math.max(1, FORGE_CONFIG.focus.maxLevel),
     },
   );
+    applyCrossSkillTransfer("focus", "control", performance * 0.2 - 0.1);
+    applyCrossSkillTransfer("focus", "consistency", performance * 0.15 - 0.075);
+
     recordEvent({
       sessionId,
       skill: "focus",
