@@ -94,3 +94,8 @@
   .auto-disappear-notice strong{font-size:12px}
   .reveal-item{flex-basis:50px;height:50px}
 }
+
+
+/* FOCUS DIFFICULTY READOUT */
+.focus-difficulty-readout{width:min(420px,100%);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;margin:0 auto 14px;text-align:left;color:#69745f;font:700 8px 'Space Grotesk';letter-spacing:.15em}.focus-difficulty-readout b{color:var(--accent);font-size:12px}.focus-difficulty-readout i{grid-column:2/4;height:5px;background:#1b2119;border-radius:99px;overflow:hidden;position:relative}.focus-difficulty-readout i:after{content:"";position:absolute;inset:0 auto 0 0;width:var(--focus-load,100%);background:var(--accent);border-radius:inherit}
+.focus-cell{opacity:var(--focus-opacity,1);border-width:var(--focus-border-weight,2px)}.focus-cell:not(.focus-target){transform:rotate(var(--focus-rotation,0deg)) scale(var(--focus-scale,1));}.focus-cell:not(.focus-target):hover{transform:rotate(0deg) scale(1.025)}
