@@ -20,7 +20,7 @@ export const FORGE_CONFIG = {
     consecutivePoorRounds: 2,
     waitDurationMs: 650,
     startDelayMs: 350,
-    resultSpeedReferenceMs: 6000,
+    resultSpeedReferenceMs: 4800,
     difficulty: {
       targetSimilarity: [0.18, 0.82],
       distractorSimilarity: [0.16, 0.82],
