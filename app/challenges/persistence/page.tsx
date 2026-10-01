@@ -151,7 +151,17 @@ export default function PersistenceChallenge() {
     return () => window.clearTimeout(timer);
   }, [started, showing, manual, length, config.buffer, config.exposurePerItem]);
 
-  const reveal = () => {\n    if (showing || finished || revealing || credits < REVEAL_COST) return;\n    if (!spendCredits(REVEAL_COST)) return;\n    setCredits(getCredits());\n    setLevelReveals((current) => current + 1);\n    setTotalReveals((current) => current + 1);\n    setRevealing(true);\n    window.setTimeout(() => setRevealing(false), 2500);\n  };\n\n  const arrange = () => {
+  const reveal = () => {
+    if (showing || finished || revealing || credits < REVEAL_COST) return;
+    if (!spendCredits(REVEAL_COST)) return;
+    setCredits(getCredits());
+    setLevelReveals((current) => current + 1);
+    setTotalReveals((current) => current + 1);
+    setRevealing(true);
+    window.setTimeout(() => setRevealing(false), 2500);
+  };
+
+  const arrange = () => {
     setShowing(false);
     setAnswer([]);
     setSubmitted(false);
@@ -311,7 +321,13 @@ export default function PersistenceChallenge() {
                 </div>
               </div>
               {manual && <button className="btn btn-primary" onClick={arrange}>I&apos;ve got it — Arrange</button>}
-              {!manual && (\n                <div className="auto-disappear-notice" role="status">\n                  <span>⚡ AUTO-DISAPPEAR</span>\n                  <strong>WATCH THE SEQUENCE — IT DISAPPEARS AUTOMATICALLY.</strong>\n                  <small>Use the study window. When it ends, you rebuild from memory.</small>\n                </div>\n              )}
+              {!manual && (
+                <div className="auto-disappear-notice" role="status">
+                  <span>⚡ AUTO-DISAPPEAR</span>
+                  <strong>WATCH THE SEQUENCE — IT DISAPPEARS AUTOMATICALLY.</strong>
+                  <small>Use the study window. When it ends, you rebuild from memory.</small>
+                </div>
+              )}
             </>
           )}
 
