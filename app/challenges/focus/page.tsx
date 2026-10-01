@@ -4,6 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { FOCUS_LIBRARIES, FOCUS_MODES, type FocusItem } from "../../../lib/focus-library";
 import { FORGE_CONFIG } from "../../../lib/forge-config";
+import {
+  recordEvent,
+  startForgeSession,
+  updateSkillModel,
+} from "../../../lib/forge-analytics";
+import {
+  difficultySnapshot,
+  updateAdaptiveState,
+  type AdaptiveState,
+} from "../../../lib/forge-adaptive";
 
 const { rounds: ROUNDS, gridSize: GRID_SIZE } = FORGE_CONFIG.focus;
 type Phase = "ready" | "visible" | "wait";
@@ -57,6 +67,13 @@ export default function FocusChallenge() {
   const [reactionTotal, setReactionTotal] = useState(0);
   const [shownAt, setShownAt] = useState(0);
   const [palette, setPalette] = useState<FocusItem[]>([]);
+  const [sessionId, setSessionId] = useState("");
+  const [adaptive, setAdaptive] = useState<AdaptiveState>({
+    level: FORGE_CONFIG.focus.startingLevel,
+    upStreak: 0,
+    downStreak: 0,
+    history: [],
+  });
   const timerRef = useRef<number | null>(null);
 
   const levelConfig = FORGE_CONFIG.focus.levels[level - 1];
@@ -70,32 +87,67 @@ export default function FocusChallenge() {
   }, []);
 
   const advanceDifficulty = useCallback((wasCorrect: boolean) => {
-    if (wasCorrect) {
-      setPoorRounds(0);
-      setGoodRounds((value) => {
-        const next = value + 1;
-        if (next >= FORGE_CONFIG.focus.consecutiveGoodRounds && level < FORGE_CONFIG.focus.maxLevel) {
-          setLevel((current) => Math.min(FORGE_CONFIG.focus.maxLevel, current + 1));
-          return 0;
-        }
-        return next;
-      });
-      return;
-    }
+    const result = updateAdaptiveState(
+      adaptive,
+      wasCorrect ? 1 : 0,
+      {
+        minLevel: FORGE_CONFIG.focus.minLevel,
+        maxLevel: FORGE_CONFIG.focus.maxLevel,
+        startingLevel: FORGE_CONFIG.focus.startingLevel,
+        bands: FORGE_CONFIG.focus.levels.map((band) => ({
+          level: band.level,
+          minPerformance: 0,
+          maxPerformance: 1,
+        })),
+        upThreshold: FORGE_CONFIG.focus.goodAccuracy,
+        downThreshold: FORGE_CONFIG.focus.poorAccuracy,
+        consecutiveUp: FORGE_CONFIG.focus.consecutiveGoodRounds,
+        consecutiveDown: FORGE_CONFIG.focus.consecutivePoorRounds,
+      },
+    );
 
-    setGoodRounds(0);
-    setPoorRounds((value) => {
-      const next = value + 1;
-      if (next >= FORGE_CONFIG.focus.consecutivePoorRounds && level > FORGE_CONFIG.focus.minLevel) {
-        setLevel((current) => Math.max(FORGE_CONFIG.focus.minLevel, current - 1));
-        return 0;
-      }
-      return next;
-    });
-  }, [level]);
+    setAdaptive(result.state);
+    setLevel(result.decision.level);
+
+    if (sessionId) {
+      recordEvent({
+        sessionId,
+        skill: "focus",
+        game: "focus",
+        event: "difficulty_changed",
+        difficulty: difficultySnapshot(result.decision.level),
+        payload: {
+          direction: result.decision.direction,
+          performance: result.decision.targetPerformance,
+        },
+      });
+    }
+  }, [adaptive, sessionId]);
 
   const finishRound = useCallback((wasCorrect: boolean, reaction?: number) => {
     clearTimer();
+    if (sessionId) {
+      recordEvent({
+        sessionId,
+        skill: "focus",
+        game: "focus",
+        event: "trial_completed",
+        difficulty: difficultySnapshot(level),
+        payload: {
+          correct: wasCorrect,
+          reactionMs: reaction ?? null,
+        },
+      });
+      if (!wasCorrect) {
+        recordEvent({
+          sessionId,
+          skill: "focus",
+          game: "focus",
+          event: "mistake",
+          difficulty: difficultySnapshot(level),
+        });
+      }
+    }
     advanceDifficulty(wasCorrect);
 
     if (wasCorrect) {
@@ -123,7 +175,7 @@ export default function FocusChallenge() {
       }
       timerRef.current = null;
     }, FORGE_CONFIG.focus.waitDurationMs);
-  }, [advanceDifficulty, clearTimer, round]);
+  }, [advanceDifficulty, clearTimer, level, round, sessionId]);
 
   const createRound = useCallback(() => {
     clearTimer();
@@ -172,6 +224,15 @@ export default function FocusChallenge() {
     setStreak(0);
     setBestStreak(0);
     setReactionTotal(0);
+    const nextSession = startForgeSession("focus", "focus", { rounds: ROUNDS });
+    setSessionId(nextSession);
+    setAdaptive({
+      level: FORGE_CONFIG.focus.startingLevel,
+      upStreak: 0,
+      downStreak: 0,
+      history: [],
+    });
+    setLevel(FORGE_CONFIG.focus.startingLevel);
     setPhase("ready");
 
     timerRef.current = window.setTimeout(() => {
@@ -220,24 +281,25 @@ export default function FocusChallenge() {
     : Number(window.localStorage.getItem("forge.lastFocus") || 0);
 
   useEffect(() => {
-    if (!finished) return;
+    if (!finished || !sessionId) return;
 
-    const previous = JSON.parse(
-      window.localStorage.getItem("forge.metrics") ||
-        '[[\"Focus\",0],[\"Control\",0],[\"Patience\",0],[\"Persistence\",0],[\"Consistency\",0]]'
-    ) as [string, number][];
-
-    const next = previous.map(([name, value]) =>
-      name === "Focus" ? [name, Math.max(value, score)] : [name, value]
-    );
-
-    window.localStorage.setItem("forge.metrics", JSON.stringify(next));
-    window.localStorage.setItem("forge.lastFocus", String(score));
-    window.localStorage.setItem(
-      "forge.sessions",
-      String(Number(window.localStorage.getItem("forge.sessions") || 0) + 1)
-    );
-  }, [finished, score]);
+    const performance = hits / Math.max(1, hits + mistakes);
+    updateSkillModel("focus", performance, level, performance >= FORGE_CONFIG.focus.goodAccuracy);
+    recordEvent({
+      sessionId,
+      skill: "focus",
+      game: "focus",
+      event: "session_completed",
+      difficulty: difficultySnapshot(level),
+      payload: {
+        score,
+        accuracy: performance,
+        hits,
+        mistakes,
+        bestStreak,
+      },
+    });
+  }, [finished, sessionId, score, hits, mistakes, bestStreak, level]);
 
   const showField = phase === "visible";
   const accuracy = hits / Math.max(1, hits + mistakes);
