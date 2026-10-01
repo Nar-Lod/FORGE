@@ -332,9 +332,9 @@ export default function FocusChallenge() {
           <div className="eyebrow">FOCUS · ADAPTIVE VISUAL SEARCH</div>
           <h1>Find it before it vanishes.</h1>
           <p>
-            The field changes every round. Your reaction window starts at 1.5 seconds
-            and adapts gradually as your accuracy holds. Better performance brings
-            faster timing and more complex distractors.
+            Every position is populated when the field appears. Scan for the exact target
+            while the visual family, distractor similarity, and reaction window adapt
+            to your performance.
           </p>
           <div className="rule-pills">
             <span>6 visual families</span>
@@ -366,9 +366,12 @@ export default function FocusChallenge() {
 
           <div className={"focus-grid " + (showField ? "focus-grid-live" : "focus-grid-wait")}>
             {Array.from({ length: GRID_SIZE }, (_, index) => {
-              const item = palette[(index * 7 + round * 3) % Math.max(1, palette.length)];
-              const occupancySeed = ((index * 17 + round * 13) % 100) / 100;
-              const occupied = showField && index !== targetCell && occupancySeed < levelConfig.distractorDensity;
+              // Every live cell is intentionally populated. Density now controls
+              // visual clutter within each tile, never whether a tile is empty.
+              const item = index === targetCell
+                ? target
+                : palette[(index * 7 + round * 3 + level) % Math.max(1, palette.length)];
+              const occupied = showField;
 
               return (
                 <button
@@ -385,7 +388,7 @@ export default function FocusChallenge() {
                         : "field position"
                   }
                 >
-                  {showField && occupied && item ? item.glyph : ""}
+                  {occupied && item ? item.glyph : ""}
                 </button>
               );
             })}
