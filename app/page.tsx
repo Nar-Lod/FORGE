@@ -6,8 +6,8 @@ import { getAnalyticsEvents, getPlayerModel, type ForgeSkill } from "../lib/forg
 
 const skills = [
   ["FOCUS", "Hold attention when distractions compete.", "/challenges/focus", "01", "◎"],
-  ["CONTROL", "Break the impulse. Follow the rule.", "/challenges/switch", "02", "◇"],
-  ["PATIENCE", "Build the reward by choosing to wait.", "/skills/patience", "03", "◷"],
+  ["CONTROL", "Break the impulse. Follow the rule.", "/challenges/control", "02", "◇"],
+  ["PATIENCE", "Build the reward by choosing to wait.", "/challenges/patience", "03", "◷"],
   ["PERSISTENCE", "Adapt when the challenge gets harder.", "/challenges/persistence", "04", "↻"],
   ["CONSISTENCY", "Remember your pattern. Rebuild it.", "/challenges/consistency", "05", "▦"],
 ];
