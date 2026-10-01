@@ -4,11 +4,15 @@ export const FORGE_CONFIG = {
     gridSize: 36,
     startingLevel: 1,
     minLevel: 1,
-    maxLevel: 1,
-    // Static development timing. Speed progression will be added after
-    // every core game mechanic is complete.
+    maxLevel: 5,
+    // Reaction time stays fixed for now. Adaptive difficulty first changes
+    // visual complexity; timing can become adaptive after the core games stabilize.
     levels: [
-      { level: 1, reactionMs: 3000, distractorDensity: 0.34, familyComplexity: 1 },
+      { level: 1, reactionMs: 3000, distractorDensity: 0.30, familyComplexity: 1 },
+      { level: 2, reactionMs: 3000, distractorDensity: 0.38, familyComplexity: 2 },
+      { level: 3, reactionMs: 3000, distractorDensity: 0.46, familyComplexity: 3 },
+      { level: 4, reactionMs: 3000, distractorDensity: 0.54, familyComplexity: 4 },
+      { level: 5, reactionMs: 3000, distractorDensity: 0.62, familyComplexity: 5 },
     ],
     goodAccuracy: 0.85,
     poorAccuracy: 0.65,
