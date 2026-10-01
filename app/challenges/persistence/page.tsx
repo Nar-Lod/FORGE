@@ -93,6 +93,7 @@ export default function PersistenceChallenge() {
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
   const [wrong, setWrong] = useState(0);
+  const [levelMisses, setLevelMisses] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [lastResult, setLastResult] = useState<"correct" | "wrong" | null>(null);
   const [replacementIndex, setReplacementIndex] = useState<number | null>(null);
@@ -119,6 +120,7 @@ export default function PersistenceChallenge() {
     setLastResult(null);
     setReplacementIndex(null);
     setLevelAttempts(0);
+    setLevelMisses(0);
     setShowing(true);
   };
 
@@ -188,6 +190,7 @@ export default function PersistenceChallenge() {
 
     if (!correct) {
       setWrong((current) => current + 1);
+      setLevelMisses((current) => current + 1);
       setLastResult("wrong");
       setReplacementIndex(null);
       playFeedback("error");
@@ -201,7 +204,7 @@ export default function PersistenceChallenge() {
     // recovery still earns progress without rewarding repeated guessing.
     const basePoints = 70 + length * 22;
     const firstTryBonus = attemptNumber === 1 ? 45 : 0;
-    const cleanBonus = wrong === 0 && attemptNumber === 1 ? 20 : 0;
+    const cleanBonus = levelMisses === 0 && attemptNumber === 1 ? 20 : 0;
     const levelPoints = basePoints + firstTryBonus + cleanBonus;
     const nextScore = score + levelPoints;
 
