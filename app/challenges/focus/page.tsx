@@ -11,6 +11,7 @@ import {
 } from "../../../lib/forge-analytics";
 import {
   difficultySnapshot,
+  getAdaptiveProfile,
   updateAdaptiveState,
   type AdaptiveState,
 } from "../../../lib/forge-adaptive";
@@ -90,20 +91,7 @@ export default function FocusChallenge() {
     const result = updateAdaptiveState(
       adaptive,
       wasCorrect ? 1 : 0,
-      {
-        minLevel: FORGE_CONFIG.focus.minLevel,
-        maxLevel: FORGE_CONFIG.focus.maxLevel,
-        startingLevel: FORGE_CONFIG.focus.startingLevel,
-        bands: FORGE_CONFIG.focus.levels.map((band) => ({
-          level: band.level,
-          minPerformance: 0,
-          maxPerformance: 1,
-        })),
-        upThreshold: FORGE_CONFIG.focus.goodAccuracy,
-        downThreshold: FORGE_CONFIG.focus.poorAccuracy,
-        consecutiveUp: FORGE_CONFIG.focus.consecutiveGoodRounds,
-        consecutiveDown: FORGE_CONFIG.focus.consecutivePoorRounds,
-      },
+      getAdaptiveProfile("focus"),
     );
 
     setAdaptive(result.state);
