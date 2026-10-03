@@ -30,6 +30,7 @@ export type ForgeSessionRecord = {
   reveals: number;
   restStarted: boolean;
   restCompleted: boolean;
+  restStartedAt: number | null;
 };
 
 export type ForgePersonalBest = {
@@ -313,6 +314,7 @@ export function ingestForgeEvent(event: {
       reveals: 0,
       restStarted: false,
       restCompleted: false,
+      restStartedAt: null,
     });
     return;
   }
@@ -347,12 +349,31 @@ export function ingestForgeEvent(event: {
     return;
   }
 
-  if (event.event === "rest_started" || event.event === "rest_completed") {
+  if (event.event === "rest_started") {
     if (existing) {
       upsertForgeSession({
         ...existing,
-        restStarted: existing.restStarted || event.event === "rest_started",
-        restCompleted: existing.restCompleted || event.event === "rest_completed",
+        restStarted: true,
+        restStartedAt: event.timestamp,
+      });
+    }
+    return;
+  }
+
+  if (event.event === "rest_completed") {
+    if (existing) {
+      const startedAt = existing.restStartedAt ?? event.timestamp;
+      appendForgeBreak({
+        startedAt,
+        completedAt: event.timestamp,
+        durationMs: Math.max(0, event.timestamp - startedAt),
+        quality: Math.min(1, Math.max(0, (event.timestamp - startedAt) / 60000)),
+      });
+      upsertForgeSession({
+        ...existing,
+        restStarted: true,
+        restCompleted: true,
+        restStartedAt: null,
       });
     }
     return;
@@ -377,6 +398,7 @@ export function ingestForgeEvent(event: {
       reveals: session?.reveals ?? 0,
       restStarted: session?.restStarted ?? false,
       restCompleted: session?.restCompleted ?? false,
+      restStartedAt: session?.restStartedAt ?? null,
     });
     const record = getForgePlayerRecord();
     record.healthyUse = deriveHealthyUse(record.training);
