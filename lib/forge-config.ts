@@ -8,11 +8,11 @@ export const FORGE_CONFIG = {
     // Visual complexity changes first. Timing remains at the 3s baseline until
     // the perceptual generator and telemetry are stable enough to justify pressure.
     levels: [
-      { level: 1, reactionMs: 6000, distractorDensity: 0.30, familyComplexity: 1 },
-      { level: 2, reactionMs: 6000, distractorDensity: 0.38, familyComplexity: 2 },
-      { level: 3, reactionMs: 6000, distractorDensity: 0.46, familyComplexity: 3 },
-      { level: 4, reactionMs: 6000, distractorDensity: 0.54, familyComplexity: 4 },
-      { level: 5, reactionMs: 6000, distractorDensity: 0.62, familyComplexity: 5 },
+      { level: 1, reactionMs: 4800, distractorDensity: 0.30, familyComplexity: 1 },
+      { level: 2, reactionMs: 4800, distractorDensity: 0.38, familyComplexity: 2 },
+      { level: 3, reactionMs: 4600, distractorDensity: 0.46, familyComplexity: 3 },
+      { level: 4, reactionMs: 4400, distractorDensity: 0.54, familyComplexity: 4 },
+      { level: 5, reactionMs: 4200, distractorDensity: 0.62, familyComplexity: 5 },
     ],
     goodAccuracy: 0.85,
     poorAccuracy: 0.65,
