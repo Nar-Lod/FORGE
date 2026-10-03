@@ -117,6 +117,17 @@ function emptyTraining(): ForgeTrainingHistory {
   };
 }
 
+const RANDOM_NAMES = [
+  "QuietFox", "SteadyWolf", "CalmRaven", "SharpOtter", "PatientHawk",
+  "FocusedLynx", "StillPanda", "ClearFalcon", "BraveMoth", "BrightKoi",
+];
+
+function createRandomDisplayName() {
+  const name = RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
+  const suffix = Math.floor(100 + Math.random() * 900);
+  return `${name}-${suffix}`;
+}
+
 function createRecord(playerId = createPlayerId()): ForgePlayerRecord {
   const now = Date.now();
   return {
@@ -124,7 +135,7 @@ function createRecord(playerId = createPlayerId()): ForgePlayerRecord {
     playerId,
     createdAt: now,
     updatedAt: now,
-    profile: { profileVersion: 1, consentVersion: null },
+    profile: { displayName: createRandomDisplayName(), profileVersion: 1, consentVersion: null },
     training: emptyTraining(),
     healthyUse: emptyHealthyUse(),
   };
