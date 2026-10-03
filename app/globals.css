@@ -125,3 +125,25 @@
 @media(max-width:700px){.profile-identity{grid-template-columns:1fr}.profile-account{padding-left:0;padding-top:18px;border-left:0;border-top:1px solid #1f292f}.forge-account-modal{padding:25px}.forge-account-modal h2{font-size:29px}}
 
 .profile-name-input-wrap{display:flex;flex-direction:column;gap:4px}.profile-name-input-wrap small{color:#59646c;font-size:8px;letter-spacing:.04em}.profile-name-error{color:#d98b7d;font-size:9px}.profile-name-input-wrap input[aria-invalid="true"]{border-color:#8a463b}
+
+
+/* ACCESSIBILITY + PRIVACY */
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+button:disabled{cursor:not-allowed;opacity:.45}
+.skip-link{position:fixed;left:12px;top:-60px;z-index:200;padding:10px 14px;border-radius:9px;background:var(--accent);color:#071006;font-weight:800}
+.skip-link:focus{top:12px}
+.privacy-page{min-height:100vh;width:min(920px,92vw);margin:auto;padding:28px 0 70px}
+.privacy-back{display:inline-block;color:#b9c5ce;text-decoration:none;font:700 11px 'Space Grotesk';letter-spacing:.12em}
+.privacy-card{margin-top:55px;padding:clamp(24px,5vw,52px);border:1px solid #26312a;border-radius:26px;background:linear-gradient(145deg,#0e150d,#090d10);box-shadow:0 30px 100px #0008}
+.privacy-card h1{font:700 clamp(40px,7vw,72px)/.95 'Space Grotesk';letter-spacing:-.06em;max-width:720px;margin:12px 0 22px}
+.privacy-lead{max-width:720px;color:#a5afb7;font-size:16px;line-height:1.7}
+.privacy-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:35px}
+.privacy-grid article{padding:20px;border:1px solid #202a31;border-radius:16px;background:#0b1014}
+.privacy-grid h2{font:600 17px 'Space Grotesk';margin:0 0 8px}
+.privacy-grid p{margin:0;color:#74808a;font-size:12px;line-height:1.6}
+.privacy-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:30px;padding-top:24px;border-top:1px solid #1e272d}
+.btn-danger{background:#291316;color:#ffb8bd;border-color:#6a343a}
+.privacy-status{min-height:20px;color:#b8d38c;font-size:11px;margin:12px 0 0}
+.privacy-note{color:#56616a;font-size:10px;line-height:1.5;margin-top:20px}
+@media(max-width:620px){.privacy-grid{grid-template-columns:1fr}.privacy-card{margin-top:35px}.privacy-actions .btn{width:100%}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
