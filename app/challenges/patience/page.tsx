@@ -77,7 +77,7 @@ export default function PatienceChallenge(){
  useEffect(()=>{const onVisible=()=>{if(document.visibilityState==="visible"&&startedAt.current!==null)setElapsed(Date.now()-startedAt.current);};document.addEventListener("visibilitychange",onVisible);return()=>document.removeEventListener("visibilitychange",onVisible)},[]);
 
  const begin=async()=>{
-   const initialLevel=await getServerAdaptiveLevel("patience",1);
+   const initialLevel=await getServerAdaptiveLevel("patience",1,10);
    setStarted(true);setFinished(false);setRound(Math.max(0,initialLevel-1));setBanked(0);setEarly(0);setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();
    setPreviousBreak(Number(window.localStorage.getItem(LAST_KEY)||0));
    const nextSession=startForgeSession("patience","patience",{startingLevel:1});
