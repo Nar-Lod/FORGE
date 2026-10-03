@@ -83,7 +83,7 @@ export default function Home(){
             </div>
           ) : <div className="profile-account connected"><span>ACCOUNT CONNECTED</span><small>Your local training history is being synchronized to your FORGE account.</small></div>}
         </div><div className="profile-bars">{metrics.map(([name,value])=><div className="profile-bar" key={name}><div><span>{name}</span><b>{value}</b></div><div className="bar-track"><i style={{width:`${value}%`}}/></div></div>)}</div><div className="profile-insight"><span>TRAINING SIGNAL</span><strong>{sessions?`Strongest current skill: ${strongest[0]}.`:"Your profile begins with your first deliberate challenge."}</strong><p>{sessions?"Train your weakest area next, then stop if you feel the urge to keep chasing a score.":"Don't chase numbers. Learn the game, complete one challenge, review the result."}</p></div></section>
-      <footer className="game-footer">FORGE · TRAIN THE MIND · NOT AN ENDLESS FEED</footer>
+      <footer className="game-footer">FORGE · TRAIN THE MIND · NOT AN ENDLESS FEED · <Link href="/privacy" className="privacy-footer-link">DATA & PRIVACY</Link></footer>
     </main>
   </div>
 }
