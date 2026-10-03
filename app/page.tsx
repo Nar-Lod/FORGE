@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getAnalyticsEvents, getPlayerModel, type ForgeSkill } from "../lib/forge-analytics";
-import { getForgePlayerRecord, updateForgePlayerProfile } from "../lib/forge-data";
+import { getForgePlayerRecord, updateForgePlayerProfile, validateForgeUsername, FORGE_USERNAME_MAX_LENGTH } from "../lib/forge-data";
 import { useAuth } from "@clerk/nextjs";
 import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 
@@ -29,6 +29,7 @@ export default function Home(){
   const [displayName,setDisplayName]=useState("");
   const [editingName,setEditingName]=useState(false);
   const [draftName,setDraftName]=useState("");
+  const [nameError,setNameError]=useState("");
   useEffect(()=>{
     const model=getPlayerModel();
     const next=(Object.entries(skillLabels) as [ForgeSkill,string][])
@@ -68,7 +69,7 @@ export default function Home(){
           <div>
             <span className="profile-field-label">PLAYER NAME</span>
             {editingName ? (
-              <div className="profile-name-edit"><input value={draftName} maxLength={20} onChange={(event)=>setDraftName(event.target.value)} aria-label="Player name" /><button className="btn btn-primary" onClick={()=>{const clean=draftName.trim().replace(/[^a-zA-Z0-9 _-]/g,"").slice(0,20)||displayName; updateForgePlayerProfile({displayName:clean}); setDisplayName(clean); setDraftName(clean); setEditingName(false);}}>SAVE</button><button className="btn btn-secondary" onClick={()=>{setDraftName(displayName);setEditingName(false);}}>CANCEL</button></div>
+              <div className="profile-name-edit"><div className="profile-name-input-wrap"><input value={draftName} maxLength={FORGE_USERNAME_MAX_LENGTH} onChange={(event)=>{setDraftName(event.target.value);setNameError("");}} aria-label="Player name" aria-invalid={Boolean(nameError)} /><small>2–20 characters · letters, numbers, _ or -</small>{nameError && <span className="profile-name-error">{nameError}</span>}</div><button className="btn btn-primary" onClick={()=>{const validation=validateForgeUsername(draftName);if(!validation.valid){setNameError(validation.error||"Invalid username.");return;}try{const updated=updateForgePlayerProfile({displayName:validation.value});setDisplayName(updated.profile.displayName||validation.value);setDraftName(updated.profile.displayName||validation.value);setEditingName(false);setNameError("");}catch(error){setNameError(error instanceof Error?error.message:"That username is already in use.");}}}>SAVE</button><button className="btn btn-secondary" onClick={()=>{setDraftName(displayName);setNameError("");setEditingName(false);}}>CANCEL</button></div>
             ) : (
               <div className="profile-name-row"><strong>{displayName || "Forge Player"}</strong><button className="profile-edit" onClick={()=>setEditingName(true)}>EDIT</button></div>
             )}
