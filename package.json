@@ -14,7 +14,8 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "lucide-react": "0.468.0",
-    "@neondatabase/serverless": "^1.0.1"
+    "@neondatabase/serverless": "^1.0.1",
+    "@clerk/nextjs": "^7.0.0"
   },
   "devDependencies": {
     "@types/node": "22.10.2",
