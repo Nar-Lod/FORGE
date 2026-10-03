@@ -7,7 +7,7 @@ const routes = [
   ["/challenges/patience", "PATIENCE", "Do nothing on purpose."],
   ["/challenges/persistence", "PERSISTENCE", "Remember the sequence."],
   ["/challenges/consistency", "CONSISTENCY", "Remember the objects, not the slots."],
-  ["/privacy", "DATA & PRIVACY", "Your FORGE data"],
+  ["/privacy", "DATA & PRIVACY", "Your data stays under your control."],
 ] as const;
 
 test.describe("FORGE route smoke", () => {
@@ -50,4 +50,31 @@ test("privacy page exposes export and deletion controls", async ({ page }) => {
   await page.goto("/privacy");
   await expect(page.getByRole("button", { name: /Export my data/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /Delete account data/i })).toBeVisible();
+});
+
+
+test.describe("FORGE API security boundary", () => {
+  test("rejects unauthenticated event ingestion", async ({ request }) => {
+    const response = await request.post("/api/forge/events", {
+      data: {
+        id: "qa-unauthenticated-event",
+        sessionId: "qa-session",
+        timestamp: Date.now(),
+        skill: "focus",
+        game: "focus",
+        event: "session_started",
+      },
+    });
+    expect(response.status()).toBe(401);
+  });
+
+  test("rejects unauthenticated privacy export", async ({ request }) => {
+    const response = await request.get("/api/forge/privacy/export");
+    expect(response.status()).toBe(401);
+  });
+
+  test("rejects unauthenticated account deletion", async ({ request }) => {
+    const response = await request.delete("/api/forge/privacy/delete");
+    expect(response.status()).toBe(401);
+  });
 });
