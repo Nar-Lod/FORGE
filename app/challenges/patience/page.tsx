@@ -8,6 +8,7 @@ import {
   updateSkillModel,
 } from "../../../lib/forge-analytics";
 import { difficultySnapshot, getAdaptiveProfile } from "../../../lib/forge-adaptive";
+import { getServerAdaptiveLevel } from "../../../lib/forge-adaptive-client";
 
 const WAIT_SECONDS = [10, 30, 60, 90, 180, 300, 600, 1200, 3000, 3600];
 const LAST_KEY = "forge.patience.lastScore";
@@ -75,8 +76,9 @@ export default function PatienceChallenge(){
  useEffect(()=>{if(ready&&isLong)notifyMilestone(waitSeconds)},[ready,isLong,waitSeconds]);
  useEffect(()=>{const onVisible=()=>{if(document.visibilityState==="visible"&&startedAt.current!==null)setElapsed(Date.now()-startedAt.current);};document.addEventListener("visibilitychange",onVisible);return()=>document.removeEventListener("visibilitychange",onVisible)},[]);
 
- const begin=()=>{
-   setStarted(true);setFinished(false);setRound(0);setBanked(0);setEarly(0);setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();
+ const begin=async()=>{
+   const initialLevel=await getServerAdaptiveLevel("patience",1);
+   setStarted(true);setFinished(false);setRound(Math.max(0,initialLevel-1));setBanked(0);setEarly(0);setElapsed(0);setMilestone(null);lastNotified.current=0;startedAt.current=Date.now();
    setPreviousBreak(Number(window.localStorage.getItem(LAST_KEY)||0));
    const nextSession=startForgeSession("patience","patience",{startingLevel:1});
    setSessionId(nextSession);
