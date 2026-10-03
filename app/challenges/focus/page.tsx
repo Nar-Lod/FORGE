@@ -17,6 +17,7 @@ import {
   updateAdaptiveState,
   type AdaptiveState,
 } from "../../../lib/forge-adaptive";
+import { getServerAdaptiveLevel } from "../../../lib/forge-adaptive-client";
 
 const { rounds: ROUNDS, gridSize: GRID_SIZE } = FORGE_CONFIG.focus;
 type Phase = "ready" | "visible" | "wait";
@@ -254,12 +255,13 @@ export default function FocusChallenge() {
     }, visibleMs);
   }, [clearTimer, endRound, level, round, sessionId, visibleMs]);
 
-  const start = () => {
+  const start = async () => {
     clearTimer();
     setStarted(true);
     setFinished(false);
     setRound(0);
-    setLevel(FORGE_CONFIG.focus.startingLevel);
+    const connectedLevel = await getServerAdaptiveLevel("focus", FORGE_CONFIG.focus.startingLevel);
+    setLevel(connectedLevel);
     setHits(0);
     setMistakes(0);
     setStreak(0);
@@ -275,7 +277,7 @@ export default function FocusChallenge() {
     });
     setSessionId(nextSession);
     setAdaptive({
-      level: FORGE_CONFIG.focus.startingLevel,
+      level: connectedLevel,
       upStreak: 0,
       downStreak: 0,
       history: [],
