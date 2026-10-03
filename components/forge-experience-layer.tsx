@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { getForgeLevel, getForgeRewardBalance, type ForgeAchievement } from "../lib/forge-experience";
 import ForgeAvatar from "./forge-avatar";
+import { forgeHaptic, forgeTone } from "../lib/forge-feedback";
 
 const worlds = [
   { href: "/", label: "HOME", icon: "⌂" },
@@ -44,11 +45,15 @@ export default function ForgeExperienceLayer() {
       const detail = (event as CustomEvent<{ credits: number; reason: string; balance: number }>).detail;
       setCredits(detail.balance);
       setReward(detail);
+      forgeTone("success");
+      forgeHaptic([14, 28, 14]);
       window.setTimeout(() => setReward(null), 2400);
     };
     const onAchievement = (event: Event) => {
       const detail = (event as CustomEvent<ForgeAchievement>).detail;
       setAchievement(detail);
+      forgeTone("achievement");
+      forgeHaptic([18, 32, 55]);
       window.setTimeout(() => setAchievement(null), 3600);
     };
     window.addEventListener("forge:reward", onReward);
