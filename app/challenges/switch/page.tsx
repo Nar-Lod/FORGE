@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { recordEvent, startForgeSession, updateSkillModel } from "../../../lib/forge-analytics";
 import { difficultySnapshot } from "../../../lib/forge-adaptive";
+import { recordForgeSessionCompletion } from "../../../lib/forge-experience";
 
 const ROUNDS = 24;
 const ITEMS = [
@@ -43,13 +44,13 @@ function matches(s:Stimulus,r:Rule){
 }
 
 export default function SwitchChallenge(){
- const[started,setStarted]=useState(false),[finished,setFinished]=useState(false),[quit,setQuit]=useState(false),[round,setRound]=useState(0),[rule,setRule]=useState<Rule|null>(null),[stream,setStream]=useState<Stimulus[]>([]),[index,setIndex]=useState(0),[armed,setArmed]=useState(false),[correct,setCorrect]=useState(0),[mistakes,setMistakes]=useState(0),[misses,setMisses]=useState(0),[streak,setStreak]=useState(0),[bestStreak,setBestStreak]=useState(0),[last,setLast]=useState<"hit"|"miss"|null>(null),[sessionId,setSessionId]=useState("");
+ const completionRecorded=useRef(false);\n const[started,setStarted]=useState(false),[finished,setFinished]=useState(false),[quit,setQuit]=useState(false),[round,setRound]=useState(0),[rule,setRule]=useState<Rule|null>(null),[stream,setStream]=useState<Stimulus[]>([]),[index,setIndex]=useState(0),[armed,setArmed]=useState(false),[correct,setCorrect]=useState(0),[mistakes,setMistakes]=useState(0),[misses,setMisses]=useState(0),[streak,setStreak]=useState(0),[bestStreak,setBestStreak]=useState(0),[last,setLast]=useState<"hit"|"miss"|null>(null),[sessionId,setSessionId]=useState("");
  const current=stream[index];
  const speedBoosted=correct>=13;
  const signalWindowMs=speedBoosted?720:900;
  const startRound=(n:number)=>{const r=makeRound(n);setRule(r.rule);setStream(r.stream);setIndex(0);setArmed(false);setLast(null);window.setTimeout(()=>setArmed(true),650);};
  const begin=()=>{
- setStarted(true);setFinished(false);setRound(0);setCorrect(0);setMistakes(0);setMisses(0);setStreak(0);setBestStreak(0);
+ setStarted(true);setFinished(false);completionRecorded.current=false;setRound(0);setCorrect(0);setMistakes(0);setMisses(0);setStreak(0);setBestStreak(0);
  const nextSession=startForgeSession("control","control",{rounds:ROUNDS,design:"rule-switch-interference-v1"});
  setSessionId(nextSession);
  startRound(0);
