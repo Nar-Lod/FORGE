@@ -31,9 +31,9 @@ function visualStyle(index: number, challenge: FocusChallenge) {
 
   return {
     "--focus-hue": hue,
-    "--focus-rotation": `${target ? 0 : cell.variant.rotation}deg`,
-    "--focus-scale": target ? 1 : cell.variant.scale,
-    "--focus-opacity": target ? 1 : cell.variant.opacity,
+    "--focus-rotation": `${cell.variant.rotation}deg`,
+    "--focus-scale": cell.variant.scale,
+    "--focus-opacity": cell.variant.opacity,
     "--focus-similarity": cell.similarity,
     "--focus-surface": `hsl(${hue} 70% 94%)`,
     "--focus-ink": `hsl(${hue} 72% 35%)`,
@@ -463,8 +463,8 @@ export default function FocusChallenge() {
                   disabled={phase !== "visible"}
                   style={item && challenge ? visualStyle(index, challenge) : undefined}
                   aria-label={
-                    showField && index === targetCell
-                      ? target.label
+                    showField && item
+                      ? item.label
                       : phase === "wait"
                         ? "waiting"
                         : "field position"
