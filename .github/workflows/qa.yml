@@ -1,0 +1,42 @@
+name: FORGE QA
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
+  e2e:
+    if: ${{ vars.FORGE_E2E_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          FORGE_BASE_URL: ${{ vars.FORGE_BASE_URL }}
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
