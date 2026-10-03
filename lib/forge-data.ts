@@ -294,7 +294,7 @@ export function ingestForgeEvent(event: {
   const difficulty = event.difficulty?.level ?? Number(payload.level ?? 1);
   const performance = Math.max(
     0,
-    Math.min(1, Number(event.performance?.accuracy ?? payload.accuracy ?? payload.performance ?? 0)),
+    Math.min(1, Number(event.performance?.accuracy ?? payload.accuracy ?? payload.performance ?? (payload.score === null || payload.score === undefined ? 0 : Number(payload.score) / 100))),
   );
 
   if (event.event === "session_started") {
