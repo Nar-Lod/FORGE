@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
-    const auth = requireForgeAuth(request);
+    const auth = await requireForgeAuth();
     const account = await ensureAccount(auth);
     const playerId = await ensurePlayer(account.id);
     const url = new URL(request.url);
