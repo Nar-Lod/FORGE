@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getAnalyticsEvents, getPlayerModel, type ForgeSkill } from "../lib/forge-analytics";
+import { getForgePlayerRecord, updateForgePlayerProfile } from "../lib/forge-data";
+import { useAuth } from "@clerk/nextjs";
+import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 
 const skills = [
   ["FOCUS", "Hold attention when distractions compete.", "/challenges/focus", "01", "◎"],
@@ -21,7 +24,11 @@ const skillLabels: Record<ForgeSkill, string> = {
 const fallbackMetrics: [string, number][] = Object.values(skillLabels).map((label) => [label, 0]);
 
 export default function Home(){
+  const { isSignedIn } = useAuth();
   const [metrics,setMetrics]=useState<[string,number][]>(fallbackMetrics),[sessions,setSessions]=useState(0);
+  const [displayName,setDisplayName]=useState("");
+  const [editingName,setEditingName]=useState(false);
+  const [draftName,setDraftName]=useState("");
   useEffect(()=>{
     const model=getPlayerModel();
     const next=(Object.entries(skillLabels) as [ForgeSkill,string][])
@@ -29,11 +36,14 @@ export default function Home(){
     setMetrics(next);
     const completed=getAnalyticsEvents().filter((event)=>event.event==="session_completed").length;
     setSessions(completed);
+    const record=getForgePlayerRecord();
+    setDisplayName(record.profile.displayName || "Forge Player");
+    setDraftName(record.profile.displayName || "Forge Player");
   },[]);
   const overall=metrics.length?Math.round(metrics.reduce((s,[,v])=>s+Number(v),0)/metrics.length):0;
   const strongest=useMemo(()=>[...metrics].sort((a,b)=>Number(b[1])-Number(a[1]))[0],[metrics]);
   return <div className="forge-world">
-    <header className="game-nav"><Link href="/" className="game-logo">F<span>O</span>RGE</Link><div className="nav-center"><span className="nav-pill live"><i/> TRAINING ARENA</span><span className="nav-pill">ALPHA 0.1</span></div><a href="#profile" className="profile-orb" aria-label="Open profile">{overall||"+"}</a></header>
+    <header className="game-nav"><Link href="/" className="game-logo">F<span>O</span>RGE</Link><div className="nav-center"><span className="nav-pill live"><i/> TRAINING ARENA</span><span className="nav-pill">ALPHA 0.1</span></div><div className="nav-profile">{isSignedIn ? <UserButton /> : <a href="#profile" className="profile-orb" aria-label="Open profile">{displayName ? displayName.slice(0,1).toUpperCase() : overall||"+"}</a>}</div></header>
     <main className="arena-home">
       <section className="hero-arena">
         <div className="hero-copy">
@@ -53,7 +63,25 @@ export default function Home(){
 
       <section className="signature-zone"><div className="signature-copy"><span className="eyebrow">SIGNATURE CHALLENGE</span><h2>Can you interrupt<br/><em>the impulse?</em></h2><p>Switch puts competing signals in front of you and asks you to slow the automatic response. Read. Control. Act.</p><Link className="outline-play" href="/challenges/switch">PLAY SWITCH <span>↗</span></Link></div><div className="signal-board"><div className="signal-line"/><div className="signal-tile">●</div><div className="signal-tile active">◆</div><div className="signal-tile">▲</div><div className="signal-tile">■</div><div className="signal-rule">FOLLOW THE RULE<br/><b>NOT THE IMPULSE</b></div></div></section>
 
-      <section className="profile-zone" id="profile"><div className="profile-header"><div><span className="eyebrow">YOUR FORGE</span><h2>Training profile</h2></div><span className="profile-score">{overall}<small>/100</small></span></div><div className="profile-bars">{metrics.map(([name,value])=><div className="profile-bar" key={name}><div><span>{name}</span><b>{value}</b></div><div className="bar-track"><i style={{width:`${value}%`}}/></div></div>)}</div><div className="profile-insight"><span>TRAINING SIGNAL</span><strong>{sessions?`Strongest current skill: ${strongest[0]}.`:"Your profile begins with your first deliberate challenge."}</strong><p>{sessions?"Train your weakest area next, then stop if you feel the urge to keep chasing a score.":"Don't chase numbers. Learn the game, complete one challenge, review the result."}</p></div></section>
+      <section className="profile-zone" id="profile"><div className="profile-header"><div><span className="eyebrow">YOUR FORGE</span><h2>Training profile</h2></div><span className="profile-score">{overall}<small>/100</small></span></div>
+        <div className="profile-identity">
+          <div>
+            <span className="profile-field-label">PLAYER NAME</span>
+            {editingName ? (
+              <div className="profile-name-edit"><input value={draftName} maxLength={20} onChange={(event)=>setDraftName(event.target.value)} aria-label="Player name" /><button className="btn btn-primary" onClick={()=>{const clean=draftName.trim().replace(/[^a-zA-Z0-9 _-]/g,"").slice(0,20)||displayName; updateForgePlayerProfile({displayName:clean}); setDisplayName(clean); setDraftName(clean); setEditingName(false);}}>SAVE</button><button className="btn btn-secondary" onClick={()=>{setDraftName(displayName);setEditingName(false);}}>CANCEL</button></div>
+            ) : (
+              <div className="profile-name-row"><strong>{displayName || "Forge Player"}</strong><button className="profile-edit" onClick={()=>setEditingName(true)}>EDIT</button></div>
+            )}
+          </div>
+          {!isSignedIn ? (
+            <div className="profile-account">
+              <span>ANONYMOUS PROFILE</span>
+              <small>Create an account later to carry this profile into leaderboards and account features.</small>
+              <SignUpButton mode="modal"><button className="profile-account-action">CREATE ACCOUNT</button></SignUpButton>
+              <SignInButton mode="modal"><button className="profile-account-signin">SIGN IN</button></SignInButton>
+            </div>
+          ) : <div className="profile-account connected"><span>ACCOUNT CONNECTED</span><small>Your local training history is being synchronized to your FORGE account.</small></div>}
+        </div><div className="profile-bars">{metrics.map(([name,value])=><div className="profile-bar" key={name}><div><span>{name}</span><b>{value}</b></div><div className="bar-track"><i style={{width:`${value}%`}}/></div></div>)}</div><div className="profile-insight"><span>TRAINING SIGNAL</span><strong>{sessions?`Strongest current skill: ${strongest[0]}.`:"Your profile begins with your first deliberate challenge."}</strong><p>{sessions?"Train your weakest area next, then stop if you feel the urge to keep chasing a score.":"Don't chase numbers. Learn the game, complete one challenge, review the result."}</p></div></section>
       <footer className="game-footer">FORGE · TRAIN THE MIND · NOT AN ENDLESS FEED</footer>
     </main>
   </div>
