@@ -24,7 +24,9 @@ export async function POST(request: Request) {
     const contentLength = Number(request.headers.get("content-length") ?? 0);
     if (contentLength > MAX_BODY_BYTES) return json({ error: "payload_too_large" }, 413);
 
-    const body = await request.json();
+    const raw = await request.arrayBuffer();
+    if (raw.byteLength > MAX_BODY_BYTES) return json({ error: "payload_too_large" }, 413);
+    const body = JSON.parse(new TextDecoder().decode(raw));
     if (!body || typeof body !== "object") return json({ error: "invalid_payload" }, 400);
 
     const event = body as Record<string, unknown>;
