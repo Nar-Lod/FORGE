@@ -77,7 +77,7 @@ export default function ConsistencyChallenge() {
 
     const adaptiveConfig = getAdaptiveProfile("consistency");
     const localLevel = chooseInitialDifficulty("consistency", adaptiveConfig);
-    const initialLevel = await getServerAdaptiveLevel("consistency", localLevel);
+    const initialLevel = await getServerAdaptiveLevel("consistency", localLevel, 7);
     setAdaptive({
       level: initialLevel,
       upStreak: 0,
