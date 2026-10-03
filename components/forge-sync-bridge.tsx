@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/nextjs";
 import { installForgeSyncListeners, setForgeSyncToken, flushForgeEventQueue } from "../lib/forge-sync";
 import { getPlayerModel, savePlayerModel, type ForgeSkill } from "../lib/forge-analytics";
 import { getForgePlayerRecord, saveForgePlayerRecord } from "../lib/forge-data";
+import { grantSignupBonus } from "../lib/forge-credits";
 
 async function hydrateFromServer(token:string){
  const response=await fetch("/api/forge/state",{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});
@@ -44,7 +45,15 @@ export default function ForgeSyncBridge(){
    const token=isSignedIn?await getToken():null;
    if(disposed)return;
    setForgeSyncToken(token);
-   if(token){await hydrateFromServer(token);void flushForgeEventQueue(token);}
+   if(token){
+     const bonusSeen=window.localStorage.getItem("forge.auth.connected.v1")==="true";
+     if(!bonusSeen){
+       grantSignupBonus();
+       window.localStorage.setItem("forge.auth.connected.v1","true");
+     }
+     await hydrateFromServer(token);
+     void flushForgeEventQueue(token);
+   }
   };
   void sync();
   const cleanup=installForgeSyncListeners();
