@@ -180,7 +180,7 @@ export default function PersistenceChallenge() {
 
     const adaptiveConfig = getAdaptiveProfile("persistence");
     const localLevel = chooseInitialDifficulty("persistence", adaptiveConfig);
-    const initialLevel = await getServerAdaptiveLevel("persistence", localLevel);
+    const initialLevel = await getServerAdaptiveLevel("persistence", localLevel, 10);
     setAdaptive({
       level: initialLevel,
       upStreak: 0,
