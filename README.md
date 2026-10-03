@@ -425,3 +425,105 @@ Global benchmarking should not activate until these conditions are met:
 - monitoring for distribution drift.
 
 This keeps the benchmark system from turning an early, biased player population into a misleading “global” score.
+
+
+## Backend intelligence infrastructure
+
+The server-side intelligence boundary is now scaffolded around a private Postgres datastore.
+
+### Production data flow
+
+```
+Trusted identity provider
+        ↓
+Authenticated API boundary
+        ↓
+Account → Player
+        ↓
+Event ledger
+        ↓
+Sessions / Attempts
+        ↓
+Skill scores + difficulty history
+        ↓
+Personal bests / improvement
+        ↓
+Healthy-use signals
+        ↓
+Adaptive difficulty
+        ↓
+Challenge generator
+```
+
+### Server storage
+
+Schema: `db/001_forge_intelligence.sql`
+
+Server repository: `lib/forge-server.ts`
+
+The database contains separate records for:
+
+- accounts
+- players
+- sessions
+- attempts
+- skill scores
+- difficulty decisions
+- personal bests
+- improvement points
+- breaks
+- healthy-use signals
+- immutable-ish event ledger entries with idempotency
+- versioned benchmark snapshots
+
+Database access is server-only. `DATABASE_URL` must never be exposed to the browser.
+
+### API boundary
+
+- `POST /api/forge/events` — authenticated, bounded event ingestion with idempotency.
+- `GET /api/forge/state?skill=<skill>` — authenticated player state or data-driven adaptive state.
+
+The ingestion endpoint rejects oversized payloads and malformed event shapes and returns no-store responses. Duplicate event IDs are accepted without duplicating the record, allowing safe client retries.
+
+### Authentication boundary
+
+FORGE does not ship a homemade password database or browser-trusted identity mechanism. The API expects a trusted identity-provider/gateway subject and a server-side signature.
+
+This is intentional: FORGE targets teenagers as well as adults, so account security, recovery, consent, parental-control compatibility where required, and identity-provider security should be delegated to a mature authentication system rather than improvised.
+
+The current backend is therefore **ready for identity-provider activation**, but it should not be described as having live public account authentication until that provider is connected and its production secrets are configured.
+
+### Adaptive difficulty
+
+The server adaptive state is no longer based only on a browser's current LocalStorage rating.
+
+For each player and skill it considers:
+
+- persisted skill score
+- reliability
+- sample size
+- recent session performance
+- recent performance trend
+- target challenge performance
+
+The server returns a recommended level with confidence and sample size. Game generators can consume that decision while their existing game-specific level bounds remain safety rails.
+
+The game-specific bounds are not the intelligence; they are the legal operating envelope for the generator. The player's stored training evidence chooses where inside that envelope FORGE should operate.
+
+### Security model
+
+Initial security controls include:
+
+- server-only database credentials
+- trusted authentication boundary
+- parameterized SQL
+- event idempotency
+- bounded request body
+- bounded event payload complexity
+- no-store API responses
+- separate identity/account records from gameplay records
+- coarse benchmark cohorts rather than raw demographic exposure
+- benchmark snapshots rather than exposing raw population records
+
+Before public account launch, the remaining production gate is identity-provider provisioning plus database migration in the Vercel environment.
+
