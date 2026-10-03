@@ -17,6 +17,7 @@ import {
   type AdaptiveState,
 } from "../../../lib/forge-adaptive";
 import { generateSequence, type SequenceSymbol } from "../../../lib/forge-sequences";
+import { getServerAdaptiveLevel } from "../../../lib/forge-adaptive-client";
 
 type Item = { id: string; shape: string; color: string };
 
@@ -167,7 +168,7 @@ export default function PersistenceChallenge() {
     setShowing(true);
   };
 
-  const begin = () => {
+  const begin = async () => {
     setStarted(true);
     setFinished(false);
     setScore(0);
@@ -178,7 +179,8 @@ export default function PersistenceChallenge() {
     setTotalReveals(0);
 
     const adaptiveConfig = getAdaptiveProfile("persistence");
-    const initialLevel = chooseInitialDifficulty("persistence", adaptiveConfig);
+    const localLevel = chooseInitialDifficulty("persistence", adaptiveConfig);
+    const initialLevel = await getServerAdaptiveLevel("persistence", localLevel);
     setAdaptive({
       level: initialLevel,
       upStreak: 0,
