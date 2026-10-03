@@ -1,5 +1,6 @@
 import { ensureAccount, ensurePlayer, ingestServerEvent } from "../../../../lib/forge-server";
 import { requireForgeAuth } from "../../../../lib/forge-auth";
+import { consumeEventRateLimit } from "../../../../lib/forge-security";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,7 @@ function json(data: unknown, status = 200) {
 export async function POST(request: Request) {
   try {
     const auth = await requireForgeAuth();
+    if (!(await consumeEventRateLimit(auth.subject))) return json({ error: "rate_limited" }, 429);
     const contentLength = Number(request.headers.get("content-length") ?? 0);
     if (contentLength > MAX_BODY_BYTES) return json({ error: "payload_too_large" }, 413);
 
@@ -34,6 +36,9 @@ export async function POST(request: Request) {
     }
 
     const required = ["id", "sessionId", "timestamp", "skill", "game", "event"];
+    const allowedSkills = new Set(["focus","control","patience","persistence","consistency"]);
+    const allowedEvents = new Set(["session_started","session_completed","trial_started","trial_completed","difficulty_changed","mistake","recovery","reveal_used","rest_started","rest_completed"]);
+    if (!allowedSkills.has(String(event.skill)) || !allowedEvents.has(String(event.event))) return json({ error: "unsupported_event" }, 400);
     if (required.some((key) => typeof event[key] !== "string" && key !== "timestamp")) {
       return json({ error: "invalid_event_shape" }, 400);
     }
