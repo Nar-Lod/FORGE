@@ -99,3 +99,27 @@
 /* FOCUS DIFFICULTY READOUT */
 .focus-difficulty-readout{width:min(420px,100%);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;margin:0 auto 14px;text-align:left;color:#69745f;font:700 8px 'Space Grotesk';letter-spacing:.15em}.focus-difficulty-readout b{color:var(--accent);font-size:12px}.focus-difficulty-readout i{grid-column:2/4;height:5px;background:#1b2119;border-radius:99px;overflow:hidden;position:relative}.focus-difficulty-readout i:after{content:"";position:absolute;inset:0 auto 0 0;width:var(--focus-load,100%);background:var(--accent);border-radius:inherit}
 .focus-cell{opacity:var(--focus-opacity,1);border-width:var(--focus-border-weight,2px)}.focus-cell:not(.focus-target){transform:rotate(var(--focus-rotation,0deg)) scale(var(--focus-scale,1));}.focus-cell:not(.focus-target):hover{transform:rotate(0deg) scale(1.025)}
+
+/* ACCOUNT + ANONYMOUS PROFILE FLOW */
+.forge-account-backdrop{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:22px;background:#020303b8;backdrop-filter:blur(12px)}
+.forge-account-modal{width:min(520px,100%);padding:32px;border:1px solid #344326;border-radius:24px;background:linear-gradient(145deg,#11180d,#090d10);box-shadow:0 30px 100px #000b,0 0 70px #c8ff3810}
+.forge-account-kicker{color:var(--accent);font:800 9px 'Space Grotesk';letter-spacing:.2em}
+.forge-account-modal h2{font:600 34px/1 'Space Grotesk';letter-spacing:-.04em;margin:10px 0 14px}
+.forge-account-modal p{color:#9aa5ad;font-size:14px;line-height:1.65;margin:0}
+.forge-account-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}
+.forge-account-signin,.profile-account-signin{border:0;background:none;color:#a8c67c;font:700 10px 'Space Grotesk';letter-spacing:.08em;cursor:pointer;padding:8px 0}
+.forge-account-note{margin-top:18px;color:#59646c;font-size:10px;line-height:1.5}
+.nav-profile{display:flex;align-items:center;min-width:38px;justify-content:flex-end}
+.profile-identity{display:grid;grid-template-columns:1fr minmax(250px,.7fr);gap:24px;margin-bottom:26px;padding:18px;border:1px solid #1e272e;border-radius:16px;background:#0b1014}
+.profile-field-label,.profile-account>span{display:block;color:#66734f;font:800 8px 'Space Grotesk';letter-spacing:.16em}
+.profile-name-row{display:flex;align-items:center;gap:12px;margin-top:8px}
+.profile-name-row strong{font:600 22px 'Space Grotesk'}
+.profile-edit,.profile-account-action{border:1px solid #35452a;border-radius:9px;background:#10170c;color:#bdd88e;padding:7px 9px;font:700 8px 'Space Grotesk';letter-spacing:.1em;cursor:pointer}
+.profile-name-edit{display:flex;gap:7px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.profile-name-edit input{width:min(260px,100%);border:1px solid #34404a;border-radius:10px;background:#080c10;color:var(--text);padding:11px 12px;outline:none}
+.profile-name-edit .btn{padding:10px 12px;border-radius:10px;font-size:9px}
+.profile-account{padding-left:20px;border-left:1px solid #1f292f}
+.profile-account small{display:block;color:#65717b;font-size:10px;line-height:1.5;margin:6px 0 10px}
+.profile-account-action{display:inline-block;margin-right:10px}
+.profile-account.connected{display:flex;flex-direction:column;justify-content:center}
+@media(max-width:700px){.profile-identity{grid-template-columns:1fr}.profile-account{padding-left:0;padding-top:18px;border-left:0;border-top:1px solid #1f292f}.forge-account-modal{padding:25px}.forge-account-modal h2{font-size:29px}}
