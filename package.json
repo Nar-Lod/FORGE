@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "next": "15.5.9",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
+    "react": "19.1.4",
+    "react-dom": "19.1.4",
     "lucide-react": "0.468.0",
     "@neondatabase/serverless": "^1.0.1",
     "@clerk/nextjs": "^7.0.0"
