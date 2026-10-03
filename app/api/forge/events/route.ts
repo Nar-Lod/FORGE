@@ -18,7 +18,7 @@ function json(data: unknown, status = 200) {
 
 export async function POST(request: Request) {
   try {
-    const auth = requireForgeAuth(request);
+    const auth = await requireForgeAuth();
     const contentLength = Number(request.headers.get("content-length") ?? 0);
     if (contentLength > MAX_BODY_BYTES) return json({ error: "payload_too_large" }, 413);
 
