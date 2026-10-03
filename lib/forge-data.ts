@@ -93,6 +93,36 @@ export type ForgePlayerRecord = {
 const PLAYER_KEY = "forge.player.record.v1";
 const ID_KEY = "forge.player.id.v1";
 
+export const FORGE_USERNAME_MIN_LENGTH = 2;
+export const FORGE_USERNAME_MAX_LENGTH = 20;
+export const FORGE_USERNAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+export function validateForgeUsername(value: string): { valid: boolean; value: string; error?: string } {
+  const normalized = value.trim();
+  if (normalized.length < FORGE_USERNAME_MIN_LENGTH) return { valid: false, value: normalized, error: "Username must be at least 2 characters." };
+  if (normalized.length > FORGE_USERNAME_MAX_LENGTH) return { valid: false, value: normalized.slice(0, FORGE_USERNAME_MAX_LENGTH), error: "Username must be 20 characters or fewer." };
+  if (!FORGE_USERNAME_PATTERN.test(normalized)) return { valid: false, value: normalized, error: "Use letters, numbers, underscores, or hyphens." };
+  return { valid: true, value: normalized };
+}
+
+function usernameKey(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
+function usernameTakenByAnotherLocalProfile(value: string, currentPlayerId: string) {
+  // Local profiles are installation-scoped; this prevents collisions between
+  // profiles stored in this browser. Global uniqueness is enforced once the
+  // leaderboard/account service owns the username.
+  try {
+    const raw = window.localStorage.getItem(PLAYER_KEY);
+    if (!raw) return false;
+    const existing = JSON.parse(raw) as ForgePlayerRecord;
+    return existing.playerId !== currentPlayerId && usernameKey(existing.profile.displayName ?? "") === usernameKey(value);
+  } catch {
+    return false;
+  }
+}
+
 const emptyHealthyUse = (): ForgeHealthyUseRecord => ({
   improvementPerMinute: 0,
   recoveryQuality: 0,
@@ -179,6 +209,14 @@ export function updateForgePlayerProfile(
   profile: Partial<ForgePlayerRecord["profile"]>,
 ) {
   const record = getForgePlayerRecord();
+  if (profile.displayName !== undefined) {
+    const validation = validateForgeUsername(profile.displayName);
+    if (!validation.valid) throw new Error(validation.error);
+    if (usernameTakenByAnotherLocalProfile(validation.value, record.playerId)) {
+      throw new Error("That username is already in use.");
+    }
+    profile = { ...profile, displayName: validation.value };
+  }
   record.profile = { ...record.profile, ...profile };
   saveForgePlayerRecord(record);
   return record;
