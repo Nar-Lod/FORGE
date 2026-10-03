@@ -13,6 +13,7 @@ const worlds = [
   { href: "/challenges/control", label: "CONTROL", icon: "◇" },
   { href: "/challenges/patience", label: "PATIENCE", icon: "◷" },
   { href: "/challenges/persistence", label: "MEMORY", icon: "↻" },
+  { href: "/challenges/consistency", label: "CONSISTENCY", icon: "▦" },
 ];
 
 const routeSkill: Record<string, string> = {
@@ -109,7 +110,7 @@ export default function ForgeExperienceLayer() {
       )}
 
       <div className="forge-mobile-dock" aria-label="Mobile training navigation">
-        {worlds.slice(0, 5).map((world) => (
+        {worlds.map((world) => (
           <Link key={world.href} href={world.href} className={pathname === world.href ? "active" : ""}>
             <span>{world.icon}</span><small>{world.label}</small>
           </Link>
