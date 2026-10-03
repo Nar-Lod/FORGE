@@ -111,7 +111,12 @@ export default function PatienceChallenge(){
  };
  const improvement=Math.floor(elapsed/1000)-previousBreak;
  const nextWait=WAIT_SECONDS[Math.min(round+1,WAIT_SECONDS.length-1)];
- const milestonePrompt=waitMessages[waitSeconds] ?? waitMessages[3600];\n const rotatingPrompt=useMemo(()=>reflectionPrompts[Math.floor(elapsed/15000)%reflectionPrompts.length],[elapsed]);\n const currentPrompt=useMemo(()=>{\n   if(elapsed<waitSeconds*1000*0.25) return milestonePrompt;\n   return {label:rotatingPrompt.label,text:rotatingPrompt.text};\n },[elapsed,waitSeconds,milestonePrompt,rotatingPrompt]);
+ const milestonePrompt=waitMessages[waitSeconds] ?? waitMessages[3600];
+ const rotatingPrompt=useMemo(()=>reflectionPrompts[Math.floor(elapsed/15000)%reflectionPrompts.length],[elapsed]);
+ const currentPrompt=useMemo(()=>{
+   if(elapsed<waitSeconds*1000*0.25) return milestonePrompt;
+   return {label:rotatingPrompt.label,text:rotatingPrompt.text};
+ },[elapsed,waitSeconds,milestonePrompt,rotatingPrompt]);
 
  return <main className="game-shell">
   <style>{` .reflection-card{width:min(680px,100%);margin:24px auto 18px;padding:22px 24px;border:1px solid #384a25;border-radius:22px;background:radial-gradient(circle at 10% 0%,#c8ff3810,transparent 38%),linear-gradient(145deg,#121a0d,#0b1011);box-shadow:0 18px 55px #0008,inset 0 1px #ffffff0b;text-align:left;transition:box-shadow .3s,border-color .3s}.reflection-card:hover{border-color:#607d35;box-shadow:0 20px 65px #0009,0 0 35px #c8ff3810}.reflection-kicker{display:flex;align-items:center;gap:8px;color:#8ea965;font:700 9px 'Space Grotesk';letter-spacing:.18em}.reflection-pulse{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 14px #c8ff38;animation:forgePulse 1.8s ease-in-out infinite}.reflection-label{margin-top:13px;color:var(--accent);font:700 12px 'Space Grotesk';letter-spacing:.16em}.reflection-card p{margin:7px 0 14px;color:#e6ebdf;font:600 clamp(17px,2.5vw,22px)/1.35 'Space Grotesk';letter-spacing:-.02em}.reflection-dots{display:flex;gap:5px}.reflection-dots span{width:5px;height:5px;border-radius:50%;background:#33402b}.reflection-dots span.active{width:18px;border-radius:5px;background:var(--accent);box-shadow:0 0 10px #c8ff3866}@keyframes forgePulse{50%{opacity:.35;transform:scale(.75)}}@media(max-width:600px){.reflection-card{padding:18px;margin-top:18px}.reflection-card p{font-size:17px}.reflection-label{font-size:10px}}`}</style>
