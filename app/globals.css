@@ -123,3 +123,5 @@
 .profile-account-action{display:inline-block;margin-right:10px}
 .profile-account.connected{display:flex;flex-direction:column;justify-content:center}
 @media(max-width:700px){.profile-identity{grid-template-columns:1fr}.profile-account{padding-left:0;padding-top:18px;border-left:0;border-top:1px solid #1f292f}.forge-account-modal{padding:25px}.forge-account-modal h2{font-size:29px}}
+
+.profile-name-input-wrap{display:flex;flex-direction:column;gap:4px}.profile-name-input-wrap small{color:#59646c;font-size:8px;letter-spacing:.04em}.profile-name-error{color:#d98b7d;font-size:9px}.profile-name-input-wrap input[aria-invalid="true"]{border-color:#8a463b}
