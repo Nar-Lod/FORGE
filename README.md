@@ -29,7 +29,7 @@ The percentages below are the planned share of the complete 60-hour roadmap. The
 | 06 | Patience & healthy-use system | 8% | 4.8h | 85% |
 | 07 | Intelligence layer / player model | 10% | 6.0h | 100% |
 | 08 | Progression, Credits, mastery & economy | 7% | 4.2h | 70% |
-| 09 | Analytics, privacy & data architecture | 5% | 3.0h | 35% |
+| 09 | Analytics, privacy & data architecture | 5% | 3.0h | 70% |
 | 10 | UX, visual polish, audio, haptics, accessibility & mobile | 5% | 3.0h | 60% |
 | 11 | QA, performance, security & cross-device verification | 5% | 3.0h | 15% |
 | 12 | Release, documentation & long-term roadmap | 3% | 1.8h | 15% |
@@ -303,3 +303,125 @@ The long-term loop is:
 **PLAY → LEARN → IMPROVE → MEASURE → ADAPT → MASTER → REST → RETURN**
 
 Healthy engagement is part of the product specification. The system should reward meaningful improvement and deliberate stopping rather than coercive repetition.
+
+
+## Data architecture — canonical player record
+
+The intelligence layer now has two explicit layers:
+
+```
+EVENT LOG (source of truth)
+        ↓
+CANONICAL PLAYER RECORD
+        ↓
+PLAYER MODEL / ADAPTIVE ENGINE
+        ↓
+GAME GENERATOR
+        ↓
+SESSION + ATTEMPT OUTCOMES
+        ↓
+EVENT LOG
+```
+
+### Canonical player record
+
+Implemented in `lib/forge-data.ts`:
+
+- **Player identity** — anonymous installation-scoped player ID; no email or real-world identity is required.
+- **Profile** — versioned profile metadata and consent-version field.
+- **Sessions** — start/end, duration, status, score, performance, difficulty, attempts, recovery and assistance counts.
+- **Attempts** — outcome, performance, difficulty, score and assisted-play state.
+- **Personal bests** — maintained per skill/game, with difficulty and achievement timestamp.
+- **Improvement history** — longitudinal performance points retained separately from the current rating.
+- **Break behavior** — rest/break records and completion state.
+- **Healthy-use signals** — improvement per minute, recovery quality, rest performance, stopping quality, repeated attempts without improvement and deliberate break rate.
+- **Training history** — bounded local history suitable for later synchronization to a server.
+
+The existing `forge.analytics.events.v2` stream remains the event source. Events are now projected into the canonical record rather than creating a second independent game-state system.
+
+### Server migration contract
+
+The current implementation deliberately remains local-first. The canonical record is shaped so the local repository can later be replaced by a server repository without changing game mechanics:
+
+```
+Game → recordEvent()
+          ↓
+Local event ledger
+          ↓
+Canonical projection
+          ↓
+[future sync queue]
+          ↓
+Authenticated API / database
+          ↓
+Aggregated anonymized benchmark dataset
+```
+
+The future server should receive the minimum data required for training analytics. Raw gameplay events should not automatically become public leaderboard data, and personally identifying profile fields should be separated from benchmark aggregation.
+
+## Global benchmark / percentile architecture
+
+Implemented in `lib/forge-benchmarks.ts` as a **benchmark contract**, not as fabricated live rankings.
+
+The intended scoring flow is:
+
+```
+raw session performance
+        ↓
+difficulty adjustment
+        ↓
+experience/sample-size adjustment
+        ↓
+reliability / stability
+        ↓
+FORGE skill score
+        ↓
+population benchmark distribution
+        ↓
+percentile
+```
+
+The benchmark layer supports:
+
+- Global
+- Country
+- Age bracket
+- Friends
+- Weekly
+- Monthly
+
+Personal performance remains separate from population benchmarking.
+
+### Important benchmark rules
+
+1. **No fake percentile.** If a population distribution does not exist, FORGE reports that benchmarking is unavailable.
+2. **Minimum population.** A benchmark requires at least 1,000 comparable observations by default.
+3. **Minimum player history.** A player needs several comparable sessions before a population comparison is meaningful.
+4. **Difficulty matters.** A result achieved under greater measured difficulty contributes differently from an easy result.
+5. **Experience matters.** Early observations are shrunk toward a neutral midpoint until enough evidence exists.
+6. **Reliability is separate from skill.** A single exceptional session should not be treated as a stable estimate.
+7. **Benchmark freshness matters.** Stale population distributions are not presented as current.
+8. **Cohort privacy.** Country/age cohorts should be opt-in, coarse-grained and aggregated server-side; FORGE should not infer sensitive attributes from gameplay.
+9. **Percentile is descriptive, not a reward loop.** It should never become a coercive reason to keep playing.
+
+### What is intentionally not live yet
+
+There is currently no population dataset, authenticated multi-device identity, country/age cohort store, friends graph or server-side benchmark service. Therefore FORGE must **not** display statements such as “better than 78% of players” yet.
+
+When the backend exists, the benchmark service should publish versioned distributions rather than raw player records. Clients can then calculate a percentile against a signed/versioned distribution while retaining the ability to show the benchmark date and population size.
+
+## Data quality gate before global benchmarking
+
+Global benchmarking should not activate until these conditions are met:
+
+- enough anonymized observations per skill and difficulty band;
+- stable event schema across released clients;
+- duplicate/replay detection;
+- bot/automation and obviously invalid-session filtering;
+- session-duration and outcome integrity checks;
+- difficulty calibration across devices;
+- benchmark refresh/versioning;
+- privacy/consent review for any cohort segmentation;
+- monitoring for distribution drift.
+
+This keeps the benchmark system from turning an early, biased player population into a misleading “global” score.
