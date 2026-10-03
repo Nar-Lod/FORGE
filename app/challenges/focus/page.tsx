@@ -260,7 +260,7 @@ export default function FocusChallenge() {
     setStarted(true);
     setFinished(false);
     setRound(0);
-    const connectedLevel = await getServerAdaptiveLevel("focus", FORGE_CONFIG.focus.startingLevel);
+    const connectedLevel = await getServerAdaptiveLevel("focus", FORGE_CONFIG.focus.startingLevel, 5);
     setLevel(connectedLevel);
     setHits(0);
     setMistakes(0);
