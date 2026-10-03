@@ -275,3 +275,111 @@ export function getTrainingHistory(): ForgeTrainingHistory {
 }
 
 export { PLAYER_KEY as FORGE_PLAYER_RECORD_KEY };
+
+
+export function ingestForgeEvent(event: {
+  id: string;
+  sessionId: string;
+  timestamp: number;
+  skill: string;
+  game: string;
+  event: string;
+  difficulty?: { level: number; score: number };
+  performance?: Record<string, number | undefined>;
+  payload?: Record<string, number | string | boolean | null>;
+}) {
+  const history = getTrainingHistory();
+  const payload = event.payload ?? {};
+  const difficulty = event.difficulty?.level ?? Number(payload.level ?? 1);
+  const performance = Math.max(
+    0,
+    Math.min(1, Number(event.performance?.accuracy ?? payload.accuracy ?? payload.performance ?? 0)),
+  );
+
+  if (event.event === "session_started") {
+    upsertForgeSession({
+      id: event.sessionId,
+      skill: event.skill,
+      game: event.game,
+      startedAt: event.timestamp,
+      completedAt: null,
+      durationMs: 0,
+      status: "active",
+      score: null,
+      performance: null,
+      difficulty,
+      attempts: 0,
+      recoveries: 0,
+      reveals: 0,
+      restStarted: false,
+      restCompleted: false,
+    });
+    return;
+  }
+
+  const existing = history.sessions.find((item) => item.id === event.sessionId);
+
+  if (event.event === "trial_completed") {
+    appendForgeAttempt({
+      id: event.id,
+      sessionId: event.sessionId,
+      skill: event.skill,
+      game: event.game,
+      startedAt: existing?.startedAt ?? event.timestamp,
+      completedAt: event.timestamp,
+      outcome: String(payload.outcome ?? (performance >= 1 ? "success" : "attempt")),
+      performance,
+      difficulty,
+      score: payload.score === null || payload.score === undefined ? null : Number(payload.score),
+      assisted: Boolean(Number(payload.reveals ?? 0) > 0 || payload.assisted === true),
+    });
+    return;
+  }
+
+  if (event.event === "recovery" || event.event === "reveal_used") {
+    if (existing) {
+      upsertForgeSession({
+        ...existing,
+        recoveries: existing.recoveries + (event.event === "recovery" ? 1 : 0),
+        reveals: existing.reveals + (event.event === "reveal_used" ? 1 : 0),
+      });
+    }
+    return;
+  }
+
+  if (event.event === "rest_started" || event.event === "rest_completed") {
+    if (existing) {
+      upsertForgeSession({
+        ...existing,
+        restStarted: existing.restStarted || event.event === "rest_started",
+        restCompleted: existing.restCompleted || event.event === "rest_completed",
+      });
+    }
+    return;
+  }
+
+  if (event.event === "session_completed") {
+    const startedAt = existing?.startedAt ?? event.timestamp;
+    const session = getTrainingHistory().sessions.find((item) => item.id === event.sessionId);
+    upsertForgeSession({
+      id: event.sessionId,
+      skill: event.skill,
+      game: event.game,
+      startedAt,
+      completedAt: event.timestamp,
+      durationMs: Math.max(0, event.timestamp - startedAt),
+      status: "completed",
+      score: payload.score === null || payload.score === undefined ? null : Number(payload.score),
+      performance,
+      difficulty,
+      attempts: getTrainingHistory().attempts.filter((item) => item.sessionId === event.sessionId).length,
+      recoveries: session?.recoveries ?? 0,
+      reveals: session?.reveals ?? 0,
+      restStarted: session?.restStarted ?? false,
+      restCompleted: session?.restCompleted ?? false,
+    });
+    const record = getForgePlayerRecord();
+    record.healthyUse = deriveHealthyUse(record.training);
+    saveForgePlayerRecord(record);
+  }
+}
