@@ -5,6 +5,7 @@ import { installForgeSyncListeners, setForgeSyncToken, flushForgeEventQueue } fr
 import { getPlayerModel, savePlayerModel, type ForgeSkill } from "../lib/forge-analytics";
 import { getForgePlayerRecord, saveForgePlayerRecord } from "../lib/forge-data";
 import { grantSignupBonus } from "../lib/forge-credits";
+import ForgeAccountPrompt from "./forge-account-prompt";
 
 async function hydrateFromServer(token:string){
  const response=await fetch("/api/forge/state",{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});
@@ -59,5 +60,5 @@ export default function ForgeSyncBridge(){
   const cleanup=installForgeSyncListeners();
   return ()=>{disposed=true;setForgeSyncToken(null);cleanup();};
  },[getToken,isSignedIn]);
- return null;
+ return <ForgeAccountPrompt />;
 }
