@@ -147,3 +147,5 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .privacy-note{color:#56616a;font-size:10px;line-height:1.5;margin-top:20px}
 @media(max-width:620px){.privacy-grid{grid-template-columns:1fr}.privacy-card{margin-top:35px}.privacy-actions .btn{width:100%}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+.privacy-footer-link{color:#6f8250;text-decoration:none}.privacy-footer-link:hover,.privacy-footer-link:focus-visible{color:var(--accent);text-decoration:underline}
