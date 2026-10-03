@@ -1,7 +1,6 @@
 import type { ForgeEvent } from "./forge-analytics";
 
 const QUEUE_KEY = "forge.sync.queue.v1";
-const PLAYER_KEY = "forge.player.id.v1";
 const MAX_QUEUE = 5000;
 
 type QueuedEvent = ForgeEvent & { queuedAt: number; attempts: number; nextRetryAt: number };
@@ -31,13 +30,17 @@ export function getPendingForgeEvents() {
 
 let flushing = false;
 
-export async function flushForgeEventQueue() {
+let authToken: string | null = null;
+
+export function setForgeSyncToken(token: string | null) { authToken = token; }
+
+export async function flushForgeEventQueue(token?: string | null) {
   if (flushing || typeof window === "undefined" || !navigator.onLine) return { sent: 0, pending: read().length };
   flushing = true;
   let sent = 0;
   try {
-    const token = localStorage.getItem("forge.auth.access_token");
-    if (!token) return { sent: 0, pending: read().length };
+    const bearer = token ?? authToken;
+    if (!bearer) return { sent: 0, pending: read().length };
 
     let queue = read();
     for (const item of queue.slice()) {
@@ -47,7 +50,7 @@ export async function flushForgeEventQueue() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${bearer}`,
           },
           body: JSON.stringify(item),
           keepalive: true,
