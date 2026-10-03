@@ -17,7 +17,8 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en">
         <body>
-          {children}
+          <a className="skip-link" href="#main-content">Skip to main content</a>
+          <div id="main-content">{children}</div>
           <ForgeSyncBridge />
         </body>
       </html>
