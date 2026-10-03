@@ -42,11 +42,12 @@ A new game, account feature, persistence feature, analytics event, privacy actio
 
 ## Current known QA blockers
 
-- next.config.ts still contains typescript.ignoreBuildErrors = true; the next gate must remove this only after the actual type errors are surfaced and fixed.
+- TypeScript build errors are no longer suppressed; CI is now the source of truth for any remaining compiler failures.
 - GitHub Actions execution is not yet observable through the connected GitHub workflow-run surface.
 - Vercel production verification is currently blocked by the connected Vercel account scope returning HTTP 403; this is an environment/authorization issue, not a test pass.
 - Clerk-authenticated E2E account creation/sign-in still needs a dedicated test identity strategy before it can safely run in CI.
 - Global username uniqueness must ultimately be enforced by the authenticated account service/database, not only by browser-local validation.
+- The unified experience layer now provides navigation, HUD, avatar, loading transition, rewards, achievements, audio and haptics; individual games still need deeper completion-state instrumentation where their results can produce specific rewards.
 
 ## Test design principles
 
