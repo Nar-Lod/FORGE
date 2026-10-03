@@ -16,6 +16,7 @@ import {
   updateAdaptiveState,
   type AdaptiveState,
 } from "../../../lib/forge-adaptive";
+import { getServerAdaptiveLevel } from "../../../lib/forge-adaptive-client";
 
 const ITEMS = ["●", "■", "▲", "◆", "★", "✚", "✦", "⬟", "⬢", "✿", "☀", "❖"];
 const LEVELS = [2, 3, 4, 5, 6, 7, 8];
@@ -67,7 +68,7 @@ export default function ConsistencyChallenge() {
     setRevealing(false);
   };
 
-  const start = () => {
+  const start = async () => {
     setStarted(true);
     setFinished(false);
     setScores([]);
@@ -75,7 +76,8 @@ export default function ConsistencyChallenge() {
     setCredits(getCredits());
 
     const adaptiveConfig = getAdaptiveProfile("consistency");
-    const initialLevel = chooseInitialDifficulty("consistency", adaptiveConfig);
+    const localLevel = chooseInitialDifficulty("consistency", adaptiveConfig);
+    const initialLevel = await getServerAdaptiveLevel("consistency", localLevel);
     setAdaptive({
       level: initialLevel,
       upStreak: 0,
