@@ -1,4 +1,5 @@
 import { ingestForgeEvent } from "./forge-data";
+import { enqueueForgeEvent, installForgeSyncListeners } from "./forge-sync";
 export type ForgeSkill =
   | "focus"
   | "control"
@@ -164,6 +165,7 @@ export function recordEvent(
   const events = [...getAnalyticsEvents(), next].slice(-MAX_EVENTS);
   window.localStorage.setItem(EVENTS_KEY, JSON.stringify(events));
   ingestForgeEvent(next);
+  enqueueForgeEvent(next);
   return next;
 }
 
